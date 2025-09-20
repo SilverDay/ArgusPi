@@ -392,11 +392,21 @@ class ArgusPiStation:
 
     @staticmethod
     def compute_hash(file_path: str) -> str:
-        """Compute SHA‑256 hash of a file in a memory‑efficient way."""
+        """Compute SHA‑256 hash of a file in a memory‑efficient way.
+        
+        Raises:
+            FileNotFoundError: If file doesn't exist (device removed)
+            PermissionError: If file access denied
+            OSError: If I/O error occurs (device disconnected)
+        """
         sha256 = hashlib.sha256()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                sha256.update(chunk)
+        try:
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    sha256.update(chunk)
+        except (FileNotFoundError, PermissionError, OSError):
+            # Re-raise these specific exceptions for caller to handle
+            raise
         return sha256.hexdigest()
 
     def query_virustotal(self, file_hash: str) -> Optional[Dict[str, int]]:
@@ -456,34 +466,51 @@ class ArgusPiStation:
         """
         infected_found = False
         error_occurred = False
-        for root, dirs, files in os.walk(mount_point):
-            for name in files:
-                file_path = os.path.join(root, name)
-                # Run a local ClamAV scan first if enabled
-                local_scan_infected = False
-                local_scan_error = False
-                if self.use_clamav:
-                    try:
-                        result = subprocess.run(
-                            [self.clamav_cmd, "--infected", "--no-summary", file_path],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-                        if result.returncode == 1:
-                            local_scan_infected = True
-                        elif result.returncode == 2:
+        
+        try:
+            for root, dirs, files in os.walk(mount_point):
+                for name in files:
+                    file_path = os.path.join(root, name)
+                    
+                    # Check if mount point still exists (device removed)
+                    if not os.path.exists(mount_point):
+                        self.log("USB device was removed during scan. Aborting scan.", "WARN")
+                        return None
+                    
+                    # Run a local ClamAV scan first if enabled
+                    local_scan_infected = False
+                    local_scan_error = False
+                    if self.use_clamav:
+                        try:
+                            result = subprocess.run(
+                                [self.clamav_cmd, "--infected", "--no-summary", file_path],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
+                            if result.returncode == 1:
+                                local_scan_infected = True
+                            elif result.returncode == 2:
+                                local_scan_error = True
+                        except FileNotFoundError:
+                            self.log("ClamAV executable not found; skipping local scan.", "WARN")
+                            self.use_clamav = False
+                        except Exception as e:
+                            self.log(f"ClamAV scan failed for {file_path}: {e}", "WARN")
                             local_scan_error = True
-                    except FileNotFoundError:
-                        self.log("ClamAV executable not found; skipping local scan.", "WARN")
-                        self.use_clamav = False
-                # Compute hash for logging and possible VT lookup
-                try:
-                    file_hash = self.compute_hash(file_path)
-                except Exception as e:
-                    self.log(f"Failed to compute hash for {file_path}: {e}", "ERROR")
-                    error_occurred = True
-                    continue
-                # Decide whether to query VirusTotal
+                    
+                    # Compute hash for logging and possible VT lookup
+                    try:
+                        file_hash = self.compute_hash(file_path)
+                    except (FileNotFoundError, PermissionError, OSError) as e:
+                        self.log(f"Failed to access file {file_path} (device may have been removed): {e}", "WARN")
+                        error_occurred = True
+                        continue
+                    except Exception as e:
+                        self.log(f"Failed to compute hash for {file_path}: {e}", "ERROR")
+                        error_occurred = True
+                        continue
+                    
+                    # Decide whether to query VirusTotal
                 vt_result = None
                 status = "clean"
                 if self.use_clamav and not local_scan_infected and not local_scan_error:
@@ -517,6 +544,13 @@ class ArgusPiStation:
                 self.log(
                     f"{status.upper()} | {file_hash} | {name} | details: {details}"
                 )
+        
+        except (OSError, FileNotFoundError, PermissionError) as e:
+            self.log(f"USB device access failed during scan (device likely removed): {e}", "WARN")
+            return None
+        except Exception as e:
+            self.log(f"Unexpected error during filesystem scan: {e}", "ERROR")
+            error_occurred = True
         
         # Return status based on what was found during scanning
         if error_occurred:
