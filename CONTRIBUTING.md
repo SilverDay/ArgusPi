@@ -3,6 +3,7 @@
 Thank you for your interest in ## 🎯 Areas for Contribution
 
 ### High Priority
+
 - **📋 USB Device Whitelisting** - Allow trusted devices to bypass scanning
   - Whitelist by vendor ID, product ID, serial number, or device label
   - Configuration interface for managing whitelist entries
@@ -15,12 +16,14 @@ Thank you for your interest in ## 🎯 Areas for Contribution
 ## 🤝 How to Contribute
 
 ### Reporting Issues
+
 - Use GitHub Issues to report bugs or request features
 - Include detailed information about your environment
 - Provide steps to reproduce any issues
 - Include relevant log files or error messages
 
 ### Pull Requests
+
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
@@ -32,11 +35,13 @@ Thank you for your interest in ## 🎯 Areas for Contribution
 ## 🧪 Development Environment
 
 ### Requirements
+
 - Raspberry Pi 3B+ or newer (for hardware testing)
 - Python 3.9+
 - Git
 
 ### Setup
+
 ```bash
 git clone https://github.com/yourusername/arguspi.git
 cd arguspi
@@ -51,18 +56,21 @@ sudo python3 arguspi_setup.py
 ## 📋 Coding Standards
 
 ### Python Style
+
 - Follow PEP 8 style guidelines
 - Use type hints where appropriate
 - Write docstrings for all public functions
 - Keep functions focused and concise
 
 ### Code Organization
+
 - Maintain separation between GUI, scanning logic, and system integration
 - Use proper exception handling
 - Implement logging for debugging
 - Write thread-safe code
 
 ### Testing
+
 - Test on actual Raspberry Pi hardware when possible
 - Test with various USB device types
 - Verify security features (read-only mounting, etc.)
@@ -71,18 +79,21 @@ sudo python3 arguspi_setup.py
 ## 🎯 Areas for Contribution
 
 ### High Priority
+
 - 📱 **Mobile Integration** - Smartphone app for remote monitoring
 - 🔌 **Hardware Support** - Support for additional LED configurations
 - 🧪 **Testing Framework** - Automated testing suite
 - 📊 **Analytics** - Better scan statistics and reporting
 
 ### Medium Priority
+
 - 🌐 **Internationalization** - Multi-language support
 - 🎨 **UI Improvements** - Enhanced GUI designs
 - 📚 **Documentation** - More detailed guides and tutorials
 - 🔧 **Configuration** - Web-based configuration interface
 
 ### Low Priority
+
 - 🎵 **Audio Notifications** - Sound alerts for scan results
 - 📧 **Email Alerts** - Notification system integration
 - 🌈 **Themes** - Customizable GUI color schemes
@@ -101,12 +112,14 @@ When contributing to ArgusPi, please keep security in mind:
 ## 📝 Documentation
 
 ### Code Documentation
+
 - Use clear, descriptive variable and function names
 - Write comprehensive docstrings
 - Include type hints
 - Comment complex logic
 
 ### User Documentation
+
 - Update README.md for new features
 - Add troubleshooting information
 - Include configuration examples
@@ -127,6 +140,7 @@ test: add unit tests for file hashing
 ## 🏷️ Versioning
 
 ArgusPi follows Semantic Versioning (SemVer):
+
 - **MAJOR**: Breaking changes
 - **MINOR**: New features (backward compatible)
 - **PATCH**: Bug fixes (backward compatible)

@@ -92,7 +92,7 @@ import subprocess
 import hashlib
 from datetime import datetime
 from threading import Thread, Lock
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 import pyudev  # type: ignore
 import requests  # type: ignore
@@ -250,7 +250,7 @@ class ArgusPiStation:
         # LED status indicator
         self.use_led: bool = False
         self.led_pins: Dict[str, int] = {"red": 17, "green": 27, "blue": 22}
-        self.led: Optional[RGBLED] = None
+        self.led: Optional[Any] = None
         # GUI configuration
         self.use_gui: bool = False
         self.gui: Optional['ArgusPiGUI'] = None
@@ -293,12 +293,15 @@ class ArgusPiStation:
             )
         with open(self.config_path, "r") as f:
             data = json.load(f)
-        if "api_key" not in data or not data["api_key"]:
-            raise ValueError(
-                "VirusTotal API key missing from ArgusPi configuration. "
-                "Run the setup script to configure it."
-            )
-        self.api_key = data["api_key"].strip()
+        
+        # VirusTotal API key is now optional for offline/air-gapped environments
+        api_key = data.get("api_key", "").strip()
+        if api_key:
+            self.api_key = api_key
+        else:
+            self.api_key = None
+            self.log("VirusTotal API key not configured - running in offline mode", "INFO")
+        
         self.request_interval = int(data.get("request_interval", 20))
         self.mount_base = data.get("mount_base", "/mnt/arguspi")
         # load optional clamav configuration
@@ -415,7 +418,12 @@ class ArgusPiStation:
         Returns a dictionary with detection counts or None on error.
         Implements simple rate limiting to respect the free API quota by
         sleeping between consecutive requests while holding a lock.
+        
+        Returns None immediately if no API key is configured (offline mode).
         """
+        if self.api_key is None:
+            return None
+            
         with self.api_lock:
             headers = {"x-apikey": self.api_key}
             url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
@@ -516,7 +524,16 @@ class ArgusPiStation:
                 if self.use_clamav and not local_scan_infected and not local_scan_error:
                     # Local scan clean; skip VT
                     status = "clean"
+                elif self.api_key is None:
+                    # Offline mode - no VirusTotal available
+                    if local_scan_infected:
+                        status = "infected"
+                    elif local_scan_error:
+                        status = "error" 
+                    else:
+                        status = "clean"
                 else:
+                    # Online mode - query VirusTotal
                     vt_result = self.query_virustotal(file_hash)
                     if vt_result is None:
                         status = "error"

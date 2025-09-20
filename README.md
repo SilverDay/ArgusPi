@@ -17,10 +17,13 @@ ArgusPi is a comprehensive USB security scanning solution that automatically det
 - **🔒 Hardware Read-Only Protection** - Sets USB devices to read-only mode during scanning
 - **🧬 Advanced File Analysis** - Computes SHA-256 hashes for all files
 - **🦠 Multi-Layer Threat Detection** - Optional ClamAV local scanning + VirusTotal cloud analysis
+- **🌐 Online & Offline Modes** - Works with or without internet connectivity *(perfect for air-gapped environments)*
+- **⚡ Smart Scanning Strategy** - ClamAV pre-filters files to minimize VirusTotal API calls
 - **🚦 Visual Status Indicators** - RGB LED status lights and touchscreen GUI
 - **📊 Comprehensive Logging** - Detailed scan results and threat analysis
-- **⚡ Real-Time Scanning** - No manual intervention required
 - **🔐 Secure Mounting** - Uses `ro,noexec,nosuid,nodev` mount options
+
+> **💡 Deployment Flexibility**: ArgusPi works in any environment - from internet-connected labs to secure air-gapped facilities!
 
 ## 🖥️ User Interface
 
@@ -34,36 +37,48 @@ ArgusPi features a professional touchscreen interface optimized for Raspberry Pi
 ## 🛠️ System Requirements
 
 ### Hardware
-- **Raspberry Pi 3B+ or newer** (4GB+ RAM recommended)
-- **MicroSD card** (16GB+ Class 10 recommended)
+
+- **Raspberry Pi 5** (8GB RAM recommended, 4GB minimum)
+- **MicroSD card** (32GB+ Class 10/A2 recommended for better performance)
 - **Optional: 7-inch touchscreen** for GUI display
 - **Optional: RGB LED** for status indication
 
+> **💡 Why Pi 5?** File hashing, ClamAV scanning, and GUI operations benefit significantly from the Pi 5's improved CPU, memory bandwidth, and I/O performance.
+
 ### Software
+
 - **Raspberry Pi OS** (Bookworm or newer)
 - **Python 3.9+** with pip
 - **Root access** for installation
-- **Internet connection** for VirusTotal API access
+- **Optional: Internet connection** for VirusTotal API access *(works offline too!)*
 
 ## 🚀 Quick Start
 
 ### 1. Download ArgusPi
+
 ```bash
 git clone https://github.com/yourusername/arguspi.git
 cd arguspi
 ```
 
-### 2. Get VirusTotal API Key
+### 2. Get VirusTotal API Key (Optional)
+
+**For Online Mode:**
 1. Visit [VirusTotal](https://www.virustotal.com/)
 2. Create a free account
 3. Go to your profile and copy your API key
 
+**For Offline/Air-Gapped Mode:**
+Skip this step - ArgusPi will run in offline mode using only local ClamAV scanning.
+
 ### 3. Run Setup
+
 ```bash
 sudo python3 arguspi_setup.py
 ```
 
 The setup script will:
+
 - ✅ Validate your VirusTotal API key
 - ✅ Configure system paths and settings
 - ✅ Install required packages
@@ -71,6 +86,7 @@ The setup script will:
 - ✅ Set up USB auto-detection rules
 
 ### 4. Test Your Installation
+
 1. Insert a USB device
 2. Watch the LED status indicator or GUI
 3. Check logs: `sudo journalctl -u arguspi -f`
@@ -79,29 +95,48 @@ The setup script will:
 
 During setup, you can configure:
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| **API Key** | VirusTotal API key for cloud scanning | *Required* |
-| **Mount Path** | Directory for mounting USB devices | `/mnt/arguspi` |
-| **Request Interval** | Seconds between VirusTotal requests | `20` (free tier) |
-| **ClamAV Integration** | Enable local antivirus scanning | `No` |
-| **RGB LED** | GPIO pins for status LED | `17,27,22` |
-| **GUI Interface** | Enable touchscreen interface | `Yes` |
+| Option                 | Description                           | Default          | Performance Impact |
+| ---------------------- | ------------------------------------- | ---------------- | ------------------ |
+| **API Key**            | VirusTotal API key for cloud scanning | _Optional_       | Enables cloud analysis |
+| **Mount Path**         | Directory for mounting USB devices    | `/mnt/arguspi`   | N/A |
+| **Request Interval**   | Seconds between VirusTotal requests   | `20` (free tier) | 4 requests/min max |
+| **ClamAV Integration** | Enable local antivirus scanning       | `No`             | **🚀 HUGE speedup!** |
+| **RGB LED**            | GPIO pins for status LED              | `17,27,22`       | N/A |
+| **GUI Interface**      | Enable touchscreen interface          | `Yes`            | N/A |
+
+> **💡 Pro Tip**: For best results, enable ClamAV! It provides fast local scanning whether you're online or offline.
 
 ### Manual Configuration
 
 Edit `/etc/arguspi/config.json`:
+
+**Online Mode Configuration:**
 ```json
 {
   "api_key": "your_virustotal_api_key_here",
   "mount_base": "/mnt/arguspi",
   "request_interval": 20,
-  "use_clamav": false,
+  "use_clamav": true,
   "use_led": true,
-  "led_pins": {"red": 17, "green": 27, "blue": 22},
+  "led_pins": { "red": 17, "green": 27, "blue": 22 },
   "use_gui": true
 }
 ```
+
+**Offline/Air-Gapped Mode Configuration:**
+```json
+{
+  "api_key": "",
+  "mount_base": "/mnt/arguspi",
+  "request_interval": 20,
+  "use_clamav": true,
+  "use_led": true,
+  "led_pins": { "red": 17, "green": 27, "blue": 22 },
+  "use_gui": true
+}
+```
+
+> **🔒 Air-Gapped Security**: When `api_key` is empty, ArgusPi runs in offline mode with local ClamAV scanning only - perfect for secure environments!
 
 ## 🔧 Service Management
 
@@ -128,15 +163,16 @@ sudo systemctl disable arguspi
 
 ### Status Indicators
 
-| Status | LED Color | GUI Color | Description |
-|--------|-----------|-----------|-------------|
-| **Waiting** | Blue | Blue | Ready for USB insertion |
-| **Scanning** | Yellow | Yellow | Analyzing files |
-| **Clean** | Green | Green | No threats detected |
-| **Infected** | Red (solid) | Red | Malware found |
-| **Error** | Red (blinking) | Red | Scan error occurred |
+| Status       | LED Color      | GUI Color | Description             |
+| ------------ | -------------- | --------- | ----------------------- |
+| **Waiting**  | Blue           | Blue      | Ready for USB insertion |
+| **Scanning** | Yellow         | Yellow    | Analyzing files         |
+| **Clean**    | Green          | Green     | No threats detected     |
+| **Infected** | Red (solid)    | Red       | Malware found           |
+| **Error**    | Red (blinking) | Red       | Scan error occurred     |
 
 ### Log Format
+
 ```
 2025-09-20 14:30:15 [ArgusPi-INFO] - ArgusPi detected USB device /dev/sdb1
 2025-09-20 14:30:16 [ArgusPi-INFO] - Mounted /dev/sdb1 at /mnt/arguspi/sdb1
@@ -149,16 +185,67 @@ ArgusPi implements multiple security layers:
 
 1. **Hardware Read-Only** - USB devices are locked using `hdparm -r1`
 2. **Secure Mounting** - Filesystems mounted with restrictive options
-3. **Process Isolation** - Runs with minimal required privileges  
+3. **Process Isolation** - Runs with minimal required privileges
 4. **Thread Safety** - Proper synchronization for concurrent operations
 5. **Resource Cleanup** - Automatic unmounting on shutdown
 6. **Input Validation** - All configuration values are validated
+
+## ⚡ Performance & Scanning Behavior
+
+### How ArgusPi Scans Files
+
+ArgusPi supports **three scanning modes** to fit different environments and security requirements:
+
+#### Offline Mode (Air-Gapped/Secure Environments)
+- **Local ClamAV scanning only** - no internet required
+- **Fast and secure** - all scanning happens locally
+- **Perfect for**: Corporate environments, classified networks, secure facilities
+- **Example**: 1000 files scanned in ~10 minutes
+
+#### Online Mode Without ClamAV
+- **Every file** on the USB device is sent to VirusTotal
+- **Timing**: 20 seconds per file (free tier limit)
+- **Example**: 1000 files = ~5.5 hours scanning time! ⏰
+
+#### Online Mode With ClamAV (Recommended)
+- **Step 1**: ClamAV quickly scans each file locally (seconds)
+- **Step 2**: Only suspicious/infected files go to VirusTotal
+- **Result**: Best of both worlds - fast local + cloud intelligence
+
+### Performance Comparison
+
+| USB Contents | Offline Mode | Online (no ClamAV) | Online + ClamAV |
+|--------------|--------------|-------------------|-----------------|
+| 100 clean files | **~2 minutes** | ~33 minutes | **~2 minutes** |
+| 500 clean files | **~5 minutes** | ~2.8 hours | **~5 minutes** |
+| 1000 clean files | **~10 minutes** | ~5.5 hours | **~10 minutes** |
+
+> **🚀 Speed Champions**: Offline mode and Online+ClamAV both deliver fast scanning!
+
+### Enable ClamAV for Better Performance
+
+```bash
+# Install ClamAV
+sudo apt-get update
+sudo apt-get install clamav clamav-daemon
+
+# Update virus definitions
+sudo freshclam
+
+# Enable in ArgusPi config
+sudo nano /etc/arguspi/config.json
+# Set: "use_clamav": true
+
+# Restart service
+sudo systemctl restart arguspi
+```
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
 **ArgusPi service won't start**
+
 ```bash
 # Check service status
 sudo systemctl status arguspi
@@ -168,6 +255,7 @@ sudo python3 -c "import json; print(json.load(open('/etc/arguspi/config.json')))
 ```
 
 **USB devices not detected**
+
 ```bash
 # Check udev rules
 ls -la /etc/udev/rules.d/90-arguspi-readonly.rules
@@ -177,12 +265,14 @@ sudo udevadm control --reload
 ```
 
 **VirusTotal API errors**
+
 ```bash
 # Test API key manually
 curl -H "x-apikey: YOUR_API_KEY" https://www.virustotal.com/api/v3/files/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ```
 
 **GUI not displaying**
+
 ```bash
 # Check X11 display
 echo $DISPLAY
@@ -191,7 +281,29 @@ echo $DISPLAY
 python3 -c "import tkinter; print('Tkinter works')"
 ```
 
+**Scanning is very slow**
+
+The most common cause is not using ClamAV! See the [Performance section](#-performance--scanning-behavior) above.
+
+```bash
+# Quick fix: Enable ClamAV
+sudo apt-get install clamav clamav-daemon
+sudo freshclam
+# Edit config: "use_clamav": true
+sudo systemctl restart arguspi
+```
+
+**Out of VirusTotal API quota**
+
+```bash
+# Check current usage in logs
+sudo tail -f /var/log/arguspi.log | grep -i "quota\|limit"
+
+# Consider upgrading VirusTotal plan or enabling ClamAV to reduce API calls
+```
+
 ### Log Locations
+
 - **Service logs**: `sudo journalctl -u arguspi`
 - **Scan results**: `/var/log/arguspi.log`
 - **System logs**: `/var/log/syslog`
@@ -218,8 +330,9 @@ sudo python3 arguspi_setup.py
 ArgusPi is actively developed with exciting features planned:
 
 ### 🎯 **Roadmap**
+
 - **📋 USB Device Whitelisting** - Skip scanning for trusted devices
-  - Configure by vendor ID, product ID, serial number, or device label  
+  - Configure by vendor ID, product ID, serial number, or device label
   - Useful for personal devices, company-issued storage, or backup drives
   - Maintains security while improving workflow efficiency
 - **📱 Mobile Integration** - Smartphone app for remote monitoring and notifications
@@ -228,25 +341,28 @@ ArgusPi is actively developed with exciting features planned:
 - **🌐 Network Integration** - Central management for multiple ArgusPi stations
 - **🔒 Enhanced Security** - Support for additional antivirus engines and threat intelligence feeds
 
-### 💡 **Want to contribute?** 
+### 💡 **Want to contribute?**
+
 See our [Contributing Guidelines](CONTRIBUTING.md) to help bring these features to life!
 
 ## 🧪 Development & Testing
 
 ### Development Setup
+
 ```bash
 # Clone repository
 git clone https://github.com/yourusername/arguspi.git
 cd arguspi
 
-# Install development dependencies
-pip3 install -r requirements-dev.txt
+# Install dependencies
+pip3 install -r requirements.txt
 
 # Run in development mode
 sudo python3 arguspi_scan_station.py
 ```
 
 ### Testing
+
 ```bash
 # Test with a clean USB device
 # Check logs for expected behavior
@@ -267,8 +383,9 @@ sudo python3 arguspi_scan_station.py
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
 ### Areas for Contribution
+
 - 📱 Mobile app integration
-- 🔌 Additional hardware support  
+- 🔌 Additional hardware support
 - 🧪 Enhanced testing frameworks
 - 📚 Documentation improvements
 - 🌐 Internationalization

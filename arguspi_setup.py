@@ -73,27 +73,41 @@ def prompt_configuration() -> dict:
     print("Setting up your Raspberry Pi as an ArgusPi scanning station...")
     print()
     
-    # Prompt for API key (do not echo)
-    while True:
-        api_key = getpass(
-            "Enter your VirusTotal API key (input hidden): "
-        ).strip()
-        if api_key:
-            if len(api_key) != 64:
-                print("Warning: VirusTotal API keys are typically 64 characters long.")
-                confirm = input("Continue with this key anyway (y/N)? ").strip().lower()
-                if confirm not in ("y", "yes"):
+    # Prompt for API key (now optional for offline/air-gapped environments)
+    print("VirusTotal Integration (optional)")
+    print("- For network-connected environments: provides cloud-based threat analysis")
+    print("- For offline/air-gapped environments: skip this step to run in offline mode")
+    print("- You can always add this later by editing /etc/arguspi/config.json")
+    print()
+    
+    api_key = ""
+    skip_vt = input("Skip VirusTotal integration for offline mode? (y/N): ").strip().lower()
+    
+    if skip_vt in ("y", "yes"):
+        print("✓ Configuring ArgusPi for offline mode (local scanning only)")
+        api_key = ""
+    else:
+        while True:
+            api_key = getpass(
+                "Enter your VirusTotal API key (input hidden): "
+            ).strip()
+            if api_key:
+                if len(api_key) != 64:
+                    print("Warning: VirusTotal API keys are typically 64 characters long.")
+                    confirm = input("Continue with this key anyway (y/N)? ").strip().lower()
+                    if confirm not in ("y", "yes"):
+                        continue
+                
+                # Validate the API key
+                print("Testing API key...")
+                if validate_virustotal_api_key(api_key):
+                    print("✓ API key is valid")
+                    break
+                else:
+                    print("✗ API key is invalid or expired. Please try again.")
                     continue
-            
-            # Validate the API key
-            print("Testing API key...")
-            if validate_virustotal_api_key(api_key):
-                print("✓ API key is valid")
-                break
             else:
-                print("✗ API key is invalid or expired. Please try again.")
-                continue
-        print("API key cannot be empty. Please re‑enter.")
+                print("API key cannot be empty (or use offline mode above). Please re‑enter.")
     
     # Validate mount base path
     while True:
