@@ -1,6 +1,16 @@
 # Contributing to ArgusPi
 
-Thank you for your interest in contributing to ArgusPi! This document provides guidelines and information for contributors.
+Thank you for your interest in ## 🎯 Areas for Contribution
+
+### High Priority
+- **📋 USB Device Whitelisting** - Allow trusted devices to bypass scanning
+  - Whitelist by vendor ID, product ID, serial number, or device label
+  - Configuration interface for managing whitelist entries
+  - Automatic learning mode for frequently used devices
+- **📱 Mobile Integration** - Smartphone app for remote monitoring
+- **🔌 Hardware Support** - Support for additional LED configurations
+- **🧪 Testing Framework** - Automated testing suite
+- **📊 Analytics** - Better scan statistics and reportinguting to ArgusPi! This document provides guidelines and information for contributors.
 
 ## 🤝 How to Contribute
 

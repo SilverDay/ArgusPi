@@ -213,6 +213,24 @@ sudo python3 arguspi_setup.py
 # Service will restart automatically
 ```
 
+## 🚀 Future Enhancements
+
+ArgusPi is actively developed with exciting features planned:
+
+### 🎯 **Roadmap**
+- **📋 USB Device Whitelisting** - Skip scanning for trusted devices
+  - Configure by vendor ID, product ID, serial number, or device label  
+  - Useful for personal devices, company-issued storage, or backup drives
+  - Maintains security while improving workflow efficiency
+- **📱 Mobile Integration** - Smartphone app for remote monitoring and notifications
+- **🔌 Hardware Extensions** - Support for additional LED configurations and display types
+- **📊 Advanced Analytics** - Detailed scan statistics, threat trends, and reporting dashboards
+- **🌐 Network Integration** - Central management for multiple ArgusPi stations
+- **🔒 Enhanced Security** - Support for additional antivirus engines and threat intelligence feeds
+
+### 💡 **Want to contribute?** 
+See our [Contributing Guidelines](CONTRIBUTING.md) to help bring these features to life!
+
 ## 🧪 Development & Testing
 
 ### Development Setup
