@@ -17,9 +17,10 @@ ArgusPi is a comprehensive USB security scanning solution that automatically det
 - **🔒 Hardware Read-Only Protection** - Sets USB devices to read-only mode during scanning
 - **🧬 Advanced File Analysis** - Computes SHA-256 hashes for all files
 - **🦠 Multi-Layer Threat Detection** - Optional ClamAV local scanning + VirusTotal cloud analysis
-- **🌐 Online & Offline Modes** - Works with or without internet connectivity *(perfect for air-gapped environments)*
+- **🌐 Online & Offline Modes** - Works with or without internet connectivity _(perfect for air-gapped environments)_
 - **⚡ Smart Scanning Strategy** - ClamAV pre-filters files to minimize VirusTotal API calls
-- **🚦 Visual Status Indicators** - RGB LED status lights and touchscreen GUI
+- **� SIEM Integration** - Send scan events and results to security monitoring platforms
+- **�🚦 Visual Status Indicators** - RGB LED status lights and touchscreen GUI
 - **📊 Comprehensive Logging** - Detailed scan results and threat analysis
 - **🔐 Secure Mounting** - Uses `ro,noexec,nosuid,nodev` mount options
 
@@ -50,7 +51,7 @@ ArgusPi features a professional touchscreen interface optimized for Raspberry Pi
 - **Raspberry Pi OS** (Bookworm or newer)
 - **Python 3.9+** with pip
 - **Root access** for installation
-- **Optional: Internet connection** for VirusTotal API access *(works offline too!)*
+- **Optional: Internet connection** for VirusTotal API access _(works offline too!)_
 
 ## 🚀 Quick Start
 
@@ -64,6 +65,7 @@ cd arguspi
 ### 2. Get VirusTotal API Key (Optional)
 
 **For Online Mode:**
+
 1. Visit [VirusTotal](https://www.virustotal.com/)
 2. Create a free account
 3. Go to your profile and copy your API key
@@ -95,48 +97,101 @@ The setup script will:
 
 During setup, you can configure:
 
-| Option                 | Description                           | Default          | Performance Impact |
-| ---------------------- | ------------------------------------- | ---------------- | ------------------ |
-| **API Key**            | VirusTotal API key for cloud scanning | _Optional_       | Enables cloud analysis |
-| **Mount Path**         | Directory for mounting USB devices    | `/mnt/arguspi`   | N/A |
-| **Request Interval**   | Seconds between VirusTotal requests   | `20` (free tier) | 4 requests/min max |
-| **ClamAV Integration** | Enable local antivirus scanning       | `No`             | **🚀 HUGE speedup!** |
-| **RGB LED**            | GPIO pins for status LED              | `17,27,22`       | N/A |
-| **GUI Interface**      | Enable touchscreen interface          | `Yes`            | N/A |
+| Option                 | Description                           | Default           | Performance Impact     |
+| ---------------------- | ------------------------------------- | ----------------- | ---------------------- |
+| **Station Name**       | Unique identifier for this station    | `arguspi-station` | SIEM event correlation |
+| **API Key**            | VirusTotal API key for cloud scanning | _Optional_        | Enables cloud analysis |
+| **Mount Path**         | Directory for mounting USB devices    | `/mnt/arguspi`    | N/A                    |
+| **Request Interval**   | Seconds between VirusTotal requests   | `20` (free tier)  | 4 requests/min max     |
+| **ClamAV Integration** | Enable local antivirus scanning       | `No`              | **🚀 HUGE speedup!**   |
+| **SIEM Integration**   | Send events to security monitoring    | `No`              | Enterprise visibility  |
+| **RGB LED**            | GPIO pins for status LED              | `17,27,22`        | N/A                    |
+| **GUI Interface**      | Enable touchscreen interface          | `Yes`             | N/A                    |
 
 > **💡 Pro Tip**: For best results, enable ClamAV! It provides fast local scanning whether you're online or offline.
+>
+> **🏷️ Station Naming**: Use descriptive station names like `reception-desk`, `lab-entrance`, or `security-checkpoint-1` to easily identify which ArgusPi generated each security event in multi-station deployments!
 
 ### Manual Configuration
 
 Edit `/etc/arguspi/config.json`:
 
 **Online Mode Configuration:**
+
 ```json
 {
+  "station_name": "arguspi-station",
   "api_key": "your_virustotal_api_key_here",
   "mount_base": "/mnt/arguspi",
   "request_interval": 20,
   "use_clamav": true,
   "use_led": true,
   "led_pins": { "red": 17, "green": 27, "blue": 22 },
-  "use_gui": true
+  "use_gui": true,
+  "siem_enabled": false
 }
 ```
 
 **Offline/Air-Gapped Mode Configuration:**
+
 ```json
 {
+  "station_name": "secure-lab-entrance",
   "api_key": "",
   "mount_base": "/mnt/arguspi",
   "request_interval": 20,
   "use_clamav": true,
   "use_led": true,
   "led_pins": { "red": 17, "green": 27, "blue": 22 },
-  "use_gui": true
+  "use_gui": true,
+  "siem_enabled": false
+}
+```
+
+**Enterprise SIEM Integration (Syslog):**
+
+```json
+{
+  "station_name": "reception-desk",
+  "api_key": "your_virustotal_api_key_here",
+  "mount_base": "/mnt/arguspi",
+  "request_interval": 20,
+  "use_clamav": true,
+  "use_led": true,
+  "led_pins": { "red": 17, "green": 27, "blue": 22 },
+  "use_gui": true,
+  "siem_enabled": true,
+  "siem_type": "syslog",
+  "siem_server": "splunk.company.com",
+  "siem_port": 514,
+  "siem_facility": "local0"
+}
+```
+
+**Enterprise SIEM Integration (HTTP Webhook):**
+
+```json
+{
+  "station_name": "security-checkpoint-1",
+  "api_key": "your_virustotal_api_key_here",
+  "mount_base": "/mnt/arguspi",
+  "request_interval": 20,
+  "use_clamav": true,
+  "use_led": true,
+  "led_pins": { "red": 17, "green": 27, "blue": 22 },
+  "use_gui": true,
+  "siem_enabled": true,
+  "siem_type": "webhook",
+  "siem_webhook_url": "https://your-siem.com/api/events",
+  "siem_headers": {
+    "Authorization": "Bearer your-api-token"
+  }
 }
 ```
 
 > **🔒 Air-Gapped Security**: When `api_key` is empty, ArgusPi runs in offline mode with local ClamAV scanning only - perfect for secure environments!
+>
+> **🔗 SIEM Integration**: Send structured security events to Splunk, ELK Stack, QRadar, or any system that supports syslog/HTTP webhooks!
 
 ## 🔧 Service Management
 
@@ -179,7 +234,79 @@ sudo systemctl disable arguspi
 2025-09-20 14:30:20 [ArgusPi-INFO] - CLEAN | a1b2c3d4... | document.pdf | details: {...}
 ```
 
-## 🔒 Security Features
+## � SIEM Integration
+
+ArgusPi can send structured security events to your SIEM platform for centralized monitoring and analysis.
+
+### Supported SIEM Platforms
+
+- **Splunk** - Via syslog or HTTP Event Collector
+- **Elastic Stack (ELK)** - Via Logstash syslog input
+- **IBM QRadar** - Via syslog or REST API
+- **Microsoft Sentinel** - Via Log Analytics API
+- **Any RFC 5424 compliant SIEM** - Via syslog
+- **Custom systems** - Via HTTP webhooks
+
+### Event Types
+
+ArgusPi generates the following structured events:
+
+| Event Type        | Description                | Severity | Triggers                    |
+| ----------------- | -------------------------- | -------- | --------------------------- |
+| `scan_started`    | USB device scan begins     | Low      | USB insertion               |
+| `scan_completed`  | Scan finished with results | Low/High | Scan completion             |
+| `threat_detected` | Malware found on device    | High     | ClamAV/VirusTotal detection |
+| `scan_error`      | Scan failed or interrupted | Medium   | Device removal, errors      |
+
+### Sample SIEM Event
+
+```json
+{
+  "timestamp": "2025-09-20T14:30:00Z",
+  "source": "arguspi",
+  "station_name": "reception-desk",
+  "hostname": "raspberrypi",
+  "event_type": "threat_detected",
+  "severity": "high",
+  "data": {
+    "file_path": "/mnt/arguspi/sdb1/suspicious.exe",
+    "file_name": "suspicious.exe",
+    "file_hash": "a1b2c3d4...",
+    "device": "sdb1",
+    "detection_method": "virustotal",
+    "malicious_count": 45,
+    "suspicious_count": 12,
+    "total_engines": 70
+  }
+}
+```
+
+### Configuration Examples
+
+**Splunk Integration:**
+
+```bash
+# Configure during setup or edit /etc/arguspi/config.json
+"siem_enabled": true,
+"siem_type": "syslog",
+"siem_server": "splunk-indexer.company.com",
+"siem_port": 514,
+"siem_facility": "local0"
+```
+
+**Custom Webhook:**
+
+```bash
+"siem_enabled": true,
+"siem_type": "webhook",
+"siem_webhook_url": "https://your-siem.com/api/events",
+"siem_headers": {
+  "Authorization": "Bearer your-token",
+  "Content-Type": "application/json"
+}
+```
+
+## �🔒 Security Features
 
 ArgusPi implements multiple security layers:
 
@@ -197,28 +324,31 @@ ArgusPi implements multiple security layers:
 ArgusPi supports **three scanning modes** to fit different environments and security requirements:
 
 #### Offline Mode (Air-Gapped/Secure Environments)
+
 - **Local ClamAV scanning only** - no internet required
 - **Fast and secure** - all scanning happens locally
 - **Perfect for**: Corporate environments, classified networks, secure facilities
 - **Example**: 1000 files scanned in ~10 minutes
 
 #### Online Mode Without ClamAV
+
 - **Every file** on the USB device is sent to VirusTotal
 - **Timing**: 20 seconds per file (free tier limit)
 - **Example**: 1000 files = ~5.5 hours scanning time! ⏰
 
 #### Online Mode With ClamAV (Recommended)
+
 - **Step 1**: ClamAV quickly scans each file locally (seconds)
 - **Step 2**: Only suspicious/infected files go to VirusTotal
 - **Result**: Best of both worlds - fast local + cloud intelligence
 
 ### Performance Comparison
 
-| USB Contents | Offline Mode | Online (no ClamAV) | Online + ClamAV |
-|--------------|--------------|-------------------|-----------------|
-| 100 clean files | **~2 minutes** | ~33 minutes | **~2 minutes** |
-| 500 clean files | **~5 minutes** | ~2.8 hours | **~5 minutes** |
-| 1000 clean files | **~10 minutes** | ~5.5 hours | **~10 minutes** |
+| USB Contents     | Offline Mode    | Online (no ClamAV) | Online + ClamAV |
+| ---------------- | --------------- | ------------------ | --------------- |
+| 100 clean files  | **~2 minutes**  | ~33 minutes        | **~2 minutes**  |
+| 500 clean files  | **~5 minutes**  | ~2.8 hours         | **~5 minutes**  |
+| 1000 clean files | **~10 minutes** | ~5.5 hours         | **~10 minutes** |
 
 > **🚀 Speed Champions**: Offline mode and Online+ClamAV both deliver fast scanning!
 

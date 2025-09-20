@@ -30,7 +30,79 @@ import json
 import shutil
 import subprocess
 import stat
+import socket
+import json
+import logging
+import logging.handlers
 from getpass import getpass
+from urllib.parse import urlparse
+import ipaddress
+
+
+def validate_webhook_url(url: str) -> bool:
+    """
+    Validate webhook URL to prevent SSRF attacks.
+    
+    Args:
+        url: The webhook URL to validate
+        
+    Returns:
+        bool: True if URL is safe, False otherwise
+    """
+    try:
+        parsed = urlparse(url)
+        
+        # Must use HTTPS for security
+        if parsed.scheme not in ['https']:
+            print("Error: Webhook URL must use HTTPS protocol for security")
+            return False
+        
+        # Must have a hostname
+        if not parsed.hostname:
+            print("Error: Invalid webhook URL - no hostname found")
+            return False
+        
+        # Resolve hostname to IP to check for private/reserved ranges
+        try:
+            import socket
+            ip_addr = socket.gethostbyname(parsed.hostname)
+            ip_obj = ipaddress.ip_address(ip_addr)
+            
+            # Block private networks, loopback, link-local, etc.
+            if (ip_obj.is_private or 
+                ip_obj.is_loopback or 
+                ip_obj.is_link_local or 
+                ip_obj.is_multicast or 
+                ip_obj.is_unspecified or 
+                ip_obj.is_reserved):
+                print(f"Error: Webhook URL resolves to private/reserved IP: {ip_addr}")
+                print("This could be used for Server-Side Request Forgery (SSRF) attacks")
+                return False
+        except socket.gaierror:
+            print(f"Error: Could not resolve hostname: {parsed.hostname}")
+            return False
+        except Exception as e:
+            print(f"Error validating webhook URL: {e}")
+            return False
+        
+        # Additional checks for common SSRF bypass attempts
+        hostname_lower = parsed.hostname.lower()
+        dangerous_hosts = [
+            'localhost', '127.0.0.1', '0.0.0.0', '::1',
+            'metadata.google.internal',  # Cloud metadata endpoints
+            'instance-data',
+            '169.254.169.254'  # AWS/Azure metadata
+        ]
+        
+        if any(dangerous in hostname_lower for dangerous in dangerous_hosts):
+            print(f"Error: Webhook hostname contains blocked pattern: {parsed.hostname}")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error parsing webhook URL: {e}")
+        return False
 
 
 def validate_virustotal_api_key(api_key: str) -> bool:
@@ -61,6 +133,92 @@ def validate_virustotal_api_key(api_key: str) -> bool:
         return True  # Assume valid if test fails
 
 
+def test_siem_integration(config: dict) -> bool:
+    """Test SIEM integration by sending a test event."""
+    if not config.get("siem_enabled"):
+        return True
+        
+    try:
+        if config.get("siem_type") == "syslog":
+            # Test syslog connectivity
+            logger = logging.getLogger('arguspi_siem_test')
+            logger.setLevel(logging.INFO)
+            
+            facility_map = {
+                'local0': logging.handlers.SysLogHandler.LOG_LOCAL0,
+                'local1': logging.handlers.SysLogHandler.LOG_LOCAL1,
+                'local2': logging.handlers.SysLogHandler.LOG_LOCAL2,
+                'local3': logging.handlers.SysLogHandler.LOG_LOCAL3,
+                'local4': logging.handlers.SysLogHandler.LOG_LOCAL4,
+                'local5': logging.handlers.SysLogHandler.LOG_LOCAL5,
+                'local6': logging.handlers.SysLogHandler.LOG_LOCAL6,
+                'local7': logging.handlers.SysLogHandler.LOG_LOCAL7,
+            }
+            facility = facility_map.get(config.get("siem_facility", "local0"), 
+                                      logging.handlers.SysLogHandler.LOG_LOCAL0)
+            
+            if config.get("siem_server"):
+                handler = logging.handlers.SysLogHandler(
+                    address=(config["siem_server"], config.get("siem_port", 514)),
+                    facility=facility
+                )
+            else:
+                handler = logging.handlers.SysLogHandler(facility=facility)
+                
+            formatter = logging.Formatter(
+                'arguspi[%(process)d]: %(name)s %(levelname)s %(message)s'
+            )
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+            
+            # Send test message with station name
+            station_name = config.get("station_name", "arguspi-station")
+            logger.info(f"station_name={station_name} event_type=siem_test message=ArgusPi_SIEM_configuration_test")
+            logger.handlers.clear()
+            return True
+            
+        elif config.get("siem_type") in ["http", "webhook"]:
+            # Validate webhook URL for SSRF prevention
+            webhook_url = config.get("siem_webhook_url")
+            if not webhook_url:
+                print("Error: Webhook URL not configured")
+                return False
+                
+            if not validate_webhook_url(webhook_url):
+                print("Error: Webhook URL failed security validation")
+                return False
+            
+            # Test HTTP webhook
+            import requests
+            test_event = {
+                "timestamp": "2025-09-20T00:00:00Z",
+                "source": "arguspi",
+                "station_name": config.get("station_name", "arguspi-station"),
+                "hostname": socket.gethostname(),
+                "event_type": "siem_test",
+                "severity": "low",
+                "data": {"message": "ArgusPi SIEM configuration test"}
+            }
+            
+            headers = {"Content-Type": "application/json"}
+            headers.update(config.get("siem_headers", {}))
+            
+            response = requests.post(
+                webhook_url,  # Use validated URL
+                json=test_event,
+                headers=headers,
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+            
+    except Exception as e:
+        print(f"SIEM test failed: {e}")
+        return False
+    
+    return True
+
+
 def require_root() -> None:
     if os.geteuid() != 0:
         print("ArgusPi setup script must be run as root. Use sudo.")
@@ -71,6 +229,25 @@ def prompt_configuration() -> dict:
     """Interactively ask the user for configuration values."""
     print("=== ArgusPi USB Security Scanner Setup ===")
     print("Setting up your Raspberry Pi as an ArgusPi scanning station...")
+    print()
+    
+    # Station identification for multi-station deployments
+    print("Station Identification")
+    print("- This name will identify this ArgusPi station in logs and SIEM events")
+    print("- Examples: 'reception-desk', 'lab-entrance', 'security-checkpoint-1'")
+    
+    while True:
+        station_name = input("Enter station name [arguspi-station]: ").strip()
+        if not station_name:
+            station_name = "arguspi-station"
+        
+        # Validate station name (alphanumeric, hyphens, underscores only)
+        if station_name.replace('-', '').replace('_', '').replace('.', '').isalnum():
+            break
+        else:
+            print("Station name must contain only letters, numbers, hyphens, underscores, and dots.")
+    
+    print(f"✓ Station name set to: {station_name}")
     print()
     
     # Prompt for API key (now optional for offline/air-gapped environments)
@@ -190,6 +367,61 @@ def prompt_configuration() -> dict:
             except ValueError:
                 print("Invalid pin number. Please enter integers only.")
     
+    # SIEM integration configuration
+    print("\n--- SIEM Integration (Optional) ---")
+    print("Send scan events and results to your Security Information and Event Management system")
+    use_siem_input = input("Enable SIEM integration (y/N)? ").strip().lower()
+    use_siem = use_siem_input in ("y", "yes")
+    
+    siem_type = "syslog"
+    siem_server = ""
+    siem_port = 514
+    siem_facility = "local0"
+    siem_webhook_url = ""
+    siem_headers = {}
+    
+    if use_siem:
+        print("\nSIEM Integration Types:")
+        print("1. Syslog (RFC 5424) - Most common, works with Splunk, ELK, QRadar, etc.")
+        print("2. HTTP/Webhook - JSON POST to custom endpoints")
+        
+        while True:
+            siem_choice = input("Choose SIEM type (1-2): ").strip()
+            if siem_choice == "1":
+                siem_type = "syslog"
+                siem_server = input("SIEM server IP/hostname (leave empty for local syslog): ").strip()
+                if siem_server:
+                    while True:
+                        try:
+                            siem_port = int(input("Syslog port [514]: ").strip() or "514")
+                            break
+                        except ValueError:
+                            print("Invalid port number.")
+                siem_facility = input("Syslog facility [local0]: ").strip() or "local0"
+                break
+            elif siem_choice == "2":
+                siem_type = "webhook"
+                while True:
+                    siem_webhook_url = input("Webhook URL (https://your-siem.com/webhook): ").strip()
+                    if not siem_webhook_url:
+                        print("Webhook URL is required for HTTP integration.")
+                        continue
+                    
+                    # Validate URL for SSRF prevention
+                    if not validate_webhook_url(siem_webhook_url):
+                        print("Please provide a valid HTTPS webhook URL to a trusted external service.")
+                        continue
+                    
+                    break
+                
+                # Optional headers
+                auth_header = input("Authorization header (optional): ").strip()
+                if auth_header:
+                    siem_headers["Authorization"] = auth_header
+                break
+            else:
+                print("Invalid choice. Please enter 1 or 2.")
+    
     # Ask whether to enable the graphical interface
     use_gui_input = input(
         "Enable ArgusPi graphical touchscreen interface (Y/n)? "
@@ -197,6 +429,7 @@ def prompt_configuration() -> dict:
     # Default is yes if the user presses enter
     use_gui = use_gui_input not in ("n", "no")
     return {
+        "station_name": station_name,
         "api_key": api_key,
         "mount_base": mount_base,
         "request_interval": request_interval,
@@ -205,6 +438,13 @@ def prompt_configuration() -> dict:
         "use_led": use_led,
         "led_pins": led_pins,
         "use_gui": use_gui,
+        "siem_enabled": use_siem,
+        "siem_type": siem_type,
+        "siem_server": siem_server,
+        "siem_port": siem_port,
+        "siem_facility": siem_facility,
+        "siem_webhook_url": siem_webhook_url,
+        "siem_headers": siem_headers,
     }
 
 
@@ -342,6 +582,19 @@ def main() -> None:
     require_root()
     config = prompt_configuration()
     write_config(config)
+    
+    # Test SIEM integration if enabled
+    if config.get("siem_enabled"):
+        print("Testing SIEM integration...")
+        if test_siem_integration(config):
+            print("✓ SIEM integration test successful")
+        else:
+            print("✗ SIEM integration test failed - check configuration")
+            retry = input("Continue with setup anyway (Y/n)? ").strip().lower()
+            if retry == "n" or retry == "no":
+                print("Setup cancelled. Please check SIEM configuration and try again.")
+                sys.exit(1)
+    
     install_packages(config)
     deploy_scanning_script(config)
     create_udev_rule()

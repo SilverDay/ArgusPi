@@ -90,9 +90,14 @@ import time
 import signal
 import subprocess
 import hashlib
+import socket
+import logging
+import logging.handlers
 from datetime import datetime
 from threading import Thread, Lock
 from typing import Optional, Dict, Any
+from urllib.parse import urlparse
+import ipaddress
 
 import pyudev  # type: ignore
 import requests  # type: ignore
@@ -104,6 +109,63 @@ try:
     from gpiozero import RGBLED
 except ImportError:
     RGBLED = None  # type: ignore
+
+
+def validate_webhook_url(url: str) -> bool:
+    """
+    Validate webhook URL to prevent SSRF attacks.
+    
+    Args:
+        url: The webhook URL to validate
+        
+    Returns:
+        bool: True if URL is safe, False otherwise
+    """
+    try:
+        parsed = urlparse(url)
+        
+        # Must use HTTPS for security
+        if parsed.scheme not in ['https']:
+            return False
+        
+        # Must have a hostname
+        if not parsed.hostname:
+            return False
+        
+        # Resolve hostname to IP to check for private/reserved ranges
+        try:
+            ip_addr = socket.gethostbyname(parsed.hostname)
+            ip_obj = ipaddress.ip_address(ip_addr)
+            
+            # Block private networks, loopback, link-local, etc.
+            if (ip_obj.is_private or 
+                ip_obj.is_loopback or 
+                ip_obj.is_link_local or 
+                ip_obj.is_multicast or 
+                ip_obj.is_unspecified or 
+                ip_obj.is_reserved):
+                return False
+        except socket.gaierror:
+            return False
+        except Exception:
+            return False
+        
+        # Additional checks for common SSRF bypass attempts
+        hostname_lower = parsed.hostname.lower()
+        dangerous_hosts = [
+            'localhost', '127.0.0.1', '0.0.0.0', '::1',
+            'metadata.google.internal',  # Cloud metadata endpoints
+            'instance-data',
+            '169.254.169.254'  # AWS/Azure metadata
+        ]
+        
+        if any(dangerous in hostname_lower for dangerous in dangerous_hosts):
+            return False
+        
+        return True
+        
+    except Exception:
+        return False
 
 
 # -----------------------------------------------------------------------------
@@ -254,6 +316,17 @@ class ArgusPiStation:
         # GUI configuration
         self.use_gui: bool = False
         self.gui: Optional['ArgusPiGUI'] = None
+        # Station identification
+        self.station_name: str = "arguspi-station"
+        # SIEM integration
+        self.siem_enabled: bool = False
+        self.siem_type: str = "syslog"  # syslog, http, webhook
+        self.siem_server: str = ""
+        self.siem_port: int = 514
+        self.siem_facility: str = "local0"
+        self.siem_webhook_url: str = ""
+        self.siem_headers: Dict[str, str] = {}
+        self.siem_logger: Optional[logging.Logger] = None
         self._load_config()
         # Ensure mount base exists
         os.makedirs(self.mount_base, exist_ok=True)
@@ -314,6 +387,75 @@ class ArgusPiStation:
             self.led_pins = {"red": int(pins["red"]), "green": int(pins["green"]), "blue": int(pins["blue"])}
         # GUI configuration
         self.use_gui = bool(data.get("use_gui", False))
+        # Station identification
+        self.station_name = data.get("station_name", "arguspi-station")
+        # SIEM configuration
+        self.siem_enabled = bool(data.get("siem_enabled", False))
+        if self.siem_enabled:
+            self.siem_type = data.get("siem_type", "syslog").lower()
+            self.siem_server = data.get("siem_server", "")
+            self.siem_port = int(data.get("siem_port", 514))
+            self.siem_facility = data.get("siem_facility", "local0")
+            
+            # Validate webhook URL for SSRF protection
+            webhook_url = data.get("siem_webhook_url", "")
+            if webhook_url and not validate_webhook_url(webhook_url):
+                self.log("WARNING: Invalid or potentially dangerous webhook URL detected. SIEM webhook disabled for security.", "WARN")
+                webhook_url = ""
+            self.siem_webhook_url = webhook_url
+            
+            self.siem_headers = data.get("siem_headers", {})
+            self._init_siem_logger()
+
+    def _init_siem_logger(self) -> None:
+        """Initialize SIEM logger based on configuration."""
+        if not self.siem_enabled:
+            return
+            
+        try:
+            self.siem_logger = logging.getLogger('arguspi_siem')
+            self.siem_logger.setLevel(logging.INFO)
+            
+            # Remove existing handlers
+            self.siem_logger.handlers.clear()
+            
+            if self.siem_type == "syslog":
+                # Syslog handler for SIEM integration
+                facility_map = {
+                    'local0': logging.handlers.SysLogHandler.LOG_LOCAL0,
+                    'local1': logging.handlers.SysLogHandler.LOG_LOCAL1,
+                    'local2': logging.handlers.SysLogHandler.LOG_LOCAL2,
+                    'local3': logging.handlers.SysLogHandler.LOG_LOCAL3,
+                    'local4': logging.handlers.SysLogHandler.LOG_LOCAL4,
+                    'local5': logging.handlers.SysLogHandler.LOG_LOCAL5,
+                    'local6': logging.handlers.SysLogHandler.LOG_LOCAL6,
+                    'local7': logging.handlers.SysLogHandler.LOG_LOCAL7,
+                }
+                facility = facility_map.get(self.siem_facility, logging.handlers.SysLogHandler.LOG_LOCAL0)
+                
+                if self.siem_server:
+                    handler = logging.handlers.SysLogHandler(
+                        address=(self.siem_server, self.siem_port),
+                        facility=facility
+                    )
+                else:
+                    handler = logging.handlers.SysLogHandler(facility=facility)
+                
+                # RFC 5424 format for better SIEM parsing
+                formatter = logging.Formatter(
+                    'arguspi[%(process)d]: %(name)s %(levelname)s %(message)s'
+                )
+                handler.setFormatter(formatter)
+                self.siem_logger.addHandler(handler)
+                self.log(f"SIEM syslog integration enabled: {self.siem_server or 'local'}:{self.siem_port}", "INFO")
+            
+            elif self.siem_type in ["http", "webhook"]:
+                # HTTP/Webhook integration will be handled in send_siem_event method
+                self.log(f"SIEM {self.siem_type} integration enabled: {self.siem_webhook_url}", "INFO")
+                
+        except Exception as e:
+            self.log(f"Failed to initialize SIEM integration: {e}", "ERROR")
+            self.siem_enabled = False
 
     def log(self, message: str, level: str = "INFO") -> None:
         """Append a timestamped message to the log file and stdout."""
@@ -331,6 +473,70 @@ class ArgusPiStation:
         # Also append to GUI if available
         if self.gui:
             self.gui.append_log(f"[{level}] {message}")
+
+    def send_siem_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
+        """Send structured event data to SIEM platform."""
+        if not self.siem_enabled:
+            return
+            
+        try:
+            # Create standardized SIEM event
+            siem_event = {
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "source": "arguspi",
+                "station_name": self.station_name,
+                "hostname": socket.gethostname(),
+                "event_type": event_type,
+                "severity": self._get_event_severity(event_type, event_data),
+                "data": event_data
+            }
+            
+            if self.siem_type == "syslog" and self.siem_logger:
+                # Send as structured syslog message with station name
+                message = f"station_name={self.station_name} event_type={event_type} " + " ".join([
+                    f"{k}={json.dumps(v) if isinstance(v, (dict, list)) else v}" 
+                    for k, v in event_data.items()
+                ])
+                
+                severity = siem_event["severity"]
+                if severity == "high":
+                    self.siem_logger.error(message)
+                elif severity == "medium":
+                    self.siem_logger.warning(message)
+                else:
+                    self.siem_logger.info(message)
+                    
+            elif self.siem_type in ["http", "webhook"] and self.siem_webhook_url:
+                # Send as HTTP POST with JSON payload
+                headers = {"Content-Type": "application/json"}
+                headers.update(self.siem_headers)
+                
+                response = requests.post(
+                    self.siem_webhook_url,
+                    json=siem_event,
+                    headers=headers,
+                    timeout=10
+                )
+                response.raise_for_status()
+                
+        except Exception as e:
+            self.log(f"Failed to send SIEM event: {e}", "WARN")
+            
+    def _get_event_severity(self, event_type: str, event_data: Dict[str, Any]) -> str:
+        """Determine event severity for SIEM classification."""
+        if event_type == "threat_detected":
+            return "high"
+        elif event_type == "scan_error":
+            return "medium"
+        elif event_type in ["scan_started", "scan_completed"]:
+            if event_data.get("infected_files", 0) > 0:
+                return "high"
+            elif event_data.get("errors", 0) > 0:
+                return "medium"
+            else:
+                return "low"
+        else:
+            return "low"
 
     # --------------------------------------------------------------------------
     # LED handling
@@ -474,11 +680,21 @@ class ArgusPiStation:
         """
         infected_found = False
         error_occurred = False
+        total_files = 0
+        infected_files = 0
+        
+        # Send SIEM event for scan start
+        self.send_siem_event("scan_started", {
+            "mount_point": mount_point,
+            "device": os.path.basename(mount_point),
+            "scan_mode": "clamav+virustotal" if self.use_clamav else "virustotal_only" if self.api_key else "local_only"
+        })
         
         try:
             for root, dirs, files in os.walk(mount_point):
                 for name in files:
                     file_path = os.path.join(root, name)
+                    total_files += 1
                     
                     # Check if mount point still exists (device removed)
                     if not os.path.exists(mount_point):
@@ -541,12 +757,33 @@ class ArgusPiStation:
                     elif vt_result["malicious"] > 0 or vt_result["suspicious"] > 0:
                         status = "infected"
                         infected_found = True
+                        infected_files += 1
+                        # Send SIEM threat detection event
+                        self.send_siem_event("threat_detected", {
+                            "file_path": file_path,
+                            "file_name": name,
+                            "file_hash": file_hash,
+                            "device": os.path.basename(mount_point),
+                            "detection_method": "virustotal",
+                            "malicious_count": vt_result["malicious"],
+                            "suspicious_count": vt_result["suspicious"],
+                            "total_engines": vt_result.get("total", 0)
+                        })
                     else:
                         status = "clean"
                 # Update infected flag from local scan
                 if local_scan_infected:
                     infected_found = True
+                    infected_files += 1
                     status = "infected"
+                    # Send SIEM threat detection event for ClamAV detection
+                    self.send_siem_event("threat_detected", {
+                        "file_path": file_path,
+                        "file_name": name,
+                        "file_hash": file_hash,
+                        "device": os.path.basename(mount_point),
+                        "detection_method": "clamav"
+                    })
                 if local_scan_error:
                     error_occurred = True
                     status = "error"
@@ -568,6 +805,18 @@ class ArgusPiStation:
         except Exception as e:
             self.log(f"Unexpected error during filesystem scan: {e}", "ERROR")
             error_occurred = True
+        
+        # Send SIEM event for scan completion
+        scan_result = "error" if error_occurred else "infected" if infected_found else "clean"
+        self.send_siem_event("scan_completed", {
+            "mount_point": mount_point,
+            "device": os.path.basename(mount_point),
+            "result": scan_result,
+            "total_files": total_files,
+            "infected_files": infected_files,
+            "errors": 1 if error_occurred else 0,
+            "scan_mode": "clamav+virustotal" if self.use_clamav else "virustotal_only" if self.api_key else "local_only"
+        })
         
         # Return status based on what was found during scanning
         if error_occurred:
