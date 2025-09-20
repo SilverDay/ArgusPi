@@ -132,34 +132,38 @@ def validate_webhook_url(url: str) -> bool:
         if not parsed.hostname:
             return False
         
-        # Resolve hostname to IP to check for private/reserved ranges
+        # Resolve hostname to IP to check for dangerous/reserved ranges
         try:
             ip_addr = socket.gethostbyname(parsed.hostname)
             ip_obj = ipaddress.ip_address(ip_addr)
             
-            # Block private networks, loopback, link-local, etc.
-            if (ip_obj.is_private or 
-                ip_obj.is_loopback or 
-                ip_obj.is_link_local or 
-                ip_obj.is_multicast or 
-                ip_obj.is_unspecified or 
-                ip_obj.is_reserved):
+            # Only block truly dangerous addresses, not corporate networks
+            if (ip_obj.is_loopback or       # 127.0.0.1, ::1 (localhost)
+                ip_obj.is_link_local or     # 169.254.x.x (AWS/Azure metadata range)
+                ip_obj.is_multicast or      # Multicast addresses
+                ip_obj.is_unspecified):     # 0.0.0.0, ::
+                return False
+                
+            # Additional check for specific dangerous IPs
+            if str(ip_obj) in ['169.254.169.254', '127.0.0.1', '0.0.0.0', '::1']:
                 return False
         except socket.gaierror:
             return False
         except Exception:
             return False
         
-        # Additional checks for common SSRF bypass attempts
+        # Additional checks for common SSRF bypass attempts and cloud metadata
         hostname_lower = parsed.hostname.lower()
         dangerous_hosts = [
-            'localhost', '127.0.0.1', '0.0.0.0', '::1',
-            'metadata.google.internal',  # Cloud metadata endpoints
-            'instance-data',
-            '169.254.169.254'  # AWS/Azure metadata
+            'localhost',
+            'metadata.google.internal',  # Google Cloud metadata
+            'instance-data',             # AWS instance metadata
+            'metadata.azure.com',        # Azure metadata  
         ]
         
-        if any(dangerous in hostname_lower for dangerous in dangerous_hosts):
+        # Block specific dangerous hostnames and patterns
+        if (any(dangerous == hostname_lower for dangerous in dangerous_hosts) or
+            any(dangerous in hostname_lower for dangerous in ['metadata', 'instance-data'])):
             return False
         
         return True

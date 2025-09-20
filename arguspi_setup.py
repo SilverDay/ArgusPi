@@ -62,21 +62,25 @@ def validate_webhook_url(url: str) -> bool:
             print("Error: Invalid webhook URL - no hostname found")
             return False
         
-        # Resolve hostname to IP to check for private/reserved ranges
+        # Resolve hostname to IP to check for dangerous/reserved ranges
         try:
             import socket
             ip_addr = socket.gethostbyname(parsed.hostname)
             ip_obj = ipaddress.ip_address(ip_addr)
             
-            # Block private networks, loopback, link-local, etc.
-            if (ip_obj.is_private or 
-                ip_obj.is_loopback or 
-                ip_obj.is_link_local or 
-                ip_obj.is_multicast or 
-                ip_obj.is_unspecified or 
-                ip_obj.is_reserved):
-                print(f"Error: Webhook URL resolves to private/reserved IP: {ip_addr}")
-                print("This could be used for Server-Side Request Forgery (SSRF) attacks")
+            # Only block truly dangerous addresses, not corporate networks
+            if (ip_obj.is_loopback or       # 127.0.0.1, ::1 (localhost)
+                ip_obj.is_link_local or     # 169.254.x.x (AWS/Azure metadata range)
+                ip_obj.is_multicast or      # Multicast addresses
+                ip_obj.is_unspecified):     # 0.0.0.0, ::
+                print(f"Error: Webhook URL resolves to restricted IP: {ip_addr}")
+                print("Loopback, link-local, multicast, and unspecified addresses are not allowed")
+                return False
+                
+            # Additional check for specific dangerous IPs
+            if str(ip_obj) in ['169.254.169.254', '127.0.0.1', '0.0.0.0', '::1']:
+                print(f"Error: Webhook URL resolves to blocked IP: {ip_addr}")
+                print("This IP is commonly used for metadata services or localhost access")
                 return False
         except socket.gaierror:
             print(f"Error: Could not resolve hostname: {parsed.hostname}")
@@ -85,17 +89,25 @@ def validate_webhook_url(url: str) -> bool:
             print(f"Error validating webhook URL: {e}")
             return False
         
-        # Additional checks for common SSRF bypass attempts
+        # Additional checks for common SSRF bypass attempts and cloud metadata
         hostname_lower = parsed.hostname.lower()
         dangerous_hosts = [
-            'localhost', '127.0.0.1', '0.0.0.0', '::1',
-            'metadata.google.internal',  # Cloud metadata endpoints
-            'instance-data',
-            '169.254.169.254'  # AWS/Azure metadata
+            'localhost',
+            'metadata.google.internal',  # Google Cloud metadata
+            'instance-data',             # AWS instance metadata
+            'metadata.azure.com',        # Azure metadata  
         ]
         
-        if any(dangerous in hostname_lower for dangerous in dangerous_hosts):
+        # Block specific dangerous hostnames
+        if any(dangerous == hostname_lower for dangerous in dangerous_hosts):
+            print(f"Error: Webhook hostname is blocked: {parsed.hostname}")
+            print("This hostname is commonly used for cloud metadata services")
+            return False
+            
+        # Block hostname patterns that could be SSRF attempts
+        if any(dangerous in hostname_lower for dangerous in ['metadata', 'instance-data']):
             print(f"Error: Webhook hostname contains blocked pattern: {parsed.hostname}")
+            print("Hostnames containing 'metadata' or 'instance-data' are not allowed")
             return False
         
         return True
