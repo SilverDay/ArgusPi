@@ -1,0 +1,17 @@
+# ArgusPi USB Security Scanner Dependencies
+# Install with: pip3 install -r requirements.txt
+
+# Core dependencies
+pyudev>=0.23.2      # USB device monitoring
+requests>=2.25.1    # VirusTotal API communication
+
+# Optional dependencies (installed by setup script as needed)
+# gpiozero>=1.6.2   # RGB LED control (installed via apt)
+# tkinter            # GUI interface (usually pre-installed)
+
+# System packages (installed via apt):
+# - hdparm           # Hardware disk parameter control
+# - python3-pip      # Python package installer  
+# - python3-gpiozero # GPIO control (if LED enabled)
+# - python3-tk       # Tkinter GUI library (if GUI enabled)
+# - clamav           # Local antivirus scanning (if ClamAV enabled)
