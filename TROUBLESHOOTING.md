@@ -166,6 +166,50 @@ sudo journalctl -u arguspi -f
 # 4. The GUI should now appear automatically after reboot via the systemd service
 ```
 
+**Fix for "Authorization required, but no authorization protocol specified" error:**
+
+This error occurs when the systemd service tries to access the X11 display server but lacks proper authorization. The fix is to update the service configuration:
+
+```bash
+# Stop the current service
+sudo systemctl stop arguspi
+
+# Get your user info
+USERNAME=$(whoami)
+HOMEDIR=$HOME
+UID=$(id -u $USERNAME)
+
+# Create the corrected service file
+sudo tee /etc/systemd/system/arguspi.service << EOF
+[Unit]
+Description=ArgusPi USB Security Scanner with GUI
+After=graphical.target
+Wants=graphical.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/$UID
+Environment=XAUTHORITY=$HOMEDIR/.Xauthority
+Environment=HOME=$HOMEDIR
+ExecStart=/usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
+EOF
+
+# Reload and restart the service
+sudo systemctl daemon-reload
+sudo systemctl start arguspi
+
+# Check the status - should now work without X11 authorization errors
+sudo systemctl status arguspi
+```
+
 **Alternative: Use systemd user service with proper environment:**
 
 If you prefer a user service approach:
@@ -212,6 +256,50 @@ echo $XDG_SESSION_TYPE
 # If Wayland, switch to X11 or set environment
 # Edit autostart file to include Wayland support
 sed -i 's/Exec=python3/Exec=env GDK_BACKEND=x11 python3/' $HOME/.config/autostart/arguspi.desktop
+```
+
+### GUI Window Not Fullscreen
+
+**Symptoms:** ArgusPi GUI appears in a small window instead of fullscreen
+
+**Solutions:**
+
+```bash
+# Method 1: Restart the service (applies latest window configuration)
+sudo systemctl restart arguspi
+
+# Method 2: Test fullscreen manually to check if it works
+python3 -c "
+import tkinter as tk
+root = tk.Tk()
+root.title('Fullscreen Test')
+try:
+    root.attributes('-fullscreen', True)
+    print('✓ Fullscreen supported')
+except Exception as e:
+    print(f'⚠ Fullscreen not supported: {e}')
+root.after(3000, root.quit)
+root.mainloop()
+"
+
+# Method 3: Check display resolution and configuration
+xrandr
+# Should show your display resolution
+
+# Method 4: If using VNC or remote desktop
+# VNC/Remote sessions may not support fullscreen properly
+# Try running directly on the Pi's display
+```
+
+**For persistent windowed mode issues:**
+
+```bash
+# Check what window manager is running
+ps aux | grep -E "openbox|lxde|xfce|gnome"
+
+# Some window managers may override fullscreen requests
+# Try forcing window geometry instead
+# (This requires updating the Python code to use explicit geometry)
 ```
 
 ### Configure Autologin for GUI

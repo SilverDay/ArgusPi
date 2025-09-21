@@ -1068,12 +1068,13 @@ Wants=graphical.target
 
 [Service]
 Type=simple
-User={username}
-Group={username}
+User=root
+Group=root
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/{uid}
+Environment=XAUTHORITY={homedir}/.Xauthority
 Environment=HOME={homedir}
-ExecStart=/usr/bin/sudo /usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
+ExecStart=/usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
 Restart=always
 RestartSec=5
 

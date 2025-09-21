@@ -187,12 +187,32 @@ class ArgusPiGUI:
         # Create root window
         self.root = tk.Tk()
         self.root.title("ArgusPi USB Security Scanner")
-        # Use full screen on the Raspberry Pi Touch Display
+        
+        # Configure fullscreen display for kiosk mode
         try:
+            # Enable fullscreen mode
             self.root.attributes("-fullscreen", True)
-        except Exception:
-            # Fallback for environments that do not support fullscreen
+            # Remove window decorations
+            self.root.overrideredirect(True)
+            # Maximize window to full screen dimensions
+            self.root.geometry(f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}+0+0")
+            print("✓ GUI running in fullscreen kiosk mode")
+        except tk.TclError as e:
+            print(f"⚠ Fullscreen mode failed ({e}), using maximized window")
+            # Fallback to maximized window
+            try:
+                self.root.state('zoomed')  # Windows maximize
+            except tk.TclError:
+                try:
+                    self.root.attributes('-zoomed', True)  # Linux maximize
+                except tk.TclError:
+                    # Final fallback to full screen geometry
+                    self.root.geometry(f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}+0+0")
+        except Exception as e:
+            print(f"⚠ Display configuration failed ({e}), using default size")
+            # Last resort fallback for environments that don't support any fullscreen options
             self.root.geometry("800x480")
+        
         self.root.configure(bg="black")
 
         # Screensaver configuration
