@@ -16,13 +16,12 @@ ArgusPi is a comprehensive USB security scanning solution that automatically det
 - **🔍 Automatic USB Detection** - Instantly detects when USB devices are inserted
 - **🔒 Hardware Read-Only Protection** - Sets USB devices to read-only mode during scanning
 - **🧬 Advanced File Analysis** - Computes SHA-256 hashes for all files
-- **🦠 Multi-Layer Threat Detection** - Optional ClamAV local scanning + VirusTotal cloud analysis
+- **🦠 Multi-Layer Threat Detection** - ClamAV local scanning + VirusTotal cloud analysis
 - **🌐 Online & Offline Modes** - Works with or without internet connectivity _(perfect for air-gapped environments)_
 - **⚡ Smart Scanning Strategy** - ClamAV pre-filters files to minimize VirusTotal API calls
-- **� SIEM Integration** - Send scan events and results to security monitoring platforms
-- **�🚦 Visual Status Indicators** - RGB LED status lights and touchscreen GUI
+- **🔗 SIEM Integration** - Send scan events and results to security monitoring platforms
+- **🚦 Visual Status Indicators** - RGB LED status lights and touchscreen GUI
 - **📊 Comprehensive Logging** - Detailed scan results and threat analysis
-- **🔐 Secure Mounting** - Uses `ro,noexec,nosuid,nodev` mount options
 
 > **💡 Deployment Flexibility**: ArgusPi works in any environment - from internet-connected labs to secure air-gapped facilities!
 
@@ -35,190 +34,56 @@ ArgusPi features a professional touchscreen interface optimized for Raspberry Pi
 - **Real-time log display** showing scan progress and results
 - **Touch-friendly design** optimized for 7-inch displays
 
-## 🛠️ System Requirements
+## � Quick Start
 
-### Hardware
+### Prerequisites
 
-- **Raspberry Pi 5** (8GB RAM recommended, 4GB minimum)
-- **MicroSD card** (32GB+ Class 10/A2 recommended for better performance)
-- **Optional: 7-inch touchscreen** for GUI display
-- **Optional: RGB LED** for status indication
+- Raspberry Pi 5 (4GB+ RAM recommended)
+- Raspberry Pi OS (Bookworm or newer)
+- Optional: 7-inch touchscreen, RGB LED, VirusTotal API key
 
-> **💡 Why Pi 5?** File hashing, ClamAV scanning, and GUI operations benefit significantly from the Pi 5's improved CPU, memory bandwidth, and I/O performance.
-
-### Software
-
-- **Raspberry Pi OS** (Bookworm or newer)
-- **Python 3.9+** with pip
-- **Root access** for installation
-- **Optional: Internet connection** for VirusTotal API access _(works offline too!)_
-
-## 🚀 Quick Start
-
-### 1. Download ArgusPi
+### Installation
 
 ```bash
+# 1. Clone the repository
 git clone https://github.com/silverday/arguspi.git
 cd arguspi
-```
 
-### 2. Get VirusTotal API Key (Optional)
-
-**For Online Mode:**
-
-1. Visit [VirusTotal](https://www.virustotal.com/)
-2. Create a free account
-3. Go to your profile and copy your API key
-
-**For Offline/Air-Gapped Mode:**
-Skip this step - ArgusPi will run in offline mode using only local ClamAV scanning.
-
-### 3. Run Setup
-
-```bash
+# 2. Run the setup script
 sudo python3 arguspi_setup.py
-```
 
-The setup script will:
-
-- ✅ Validate your VirusTotal API key
-- ✅ Configure system paths and settings
-- ✅ Install required packages (handles modern Python environments automatically)
-- ✅ Create GUI desktop autostart entry
-- ✅ Create systemd service with proper GUI support
-- ✅ Set up USB auto-detection rules
-
-### 4. Enable Desktop Autologin (Required for GUI)
-
-For the ArgusPi GUI to start automatically, you must manually enable desktop autologin:
-
-```bash
-# Run Raspberry Pi configuration tool
+# 3. Enable desktop autologin (for GUI)
 sudo raspi-config
-```
+# Navigate to: System Options → Boot / Auto Login → Desktop Autologin
 
-Then navigate to:
-
-1. **System Options** → **Boot / Auto Login** → **Desktop Autologin**
-2. Select your user account
-3. Exit raspi-config and reboot
-
-### 5. Reboot and Test
-
-```bash
-# Reboot to activate autologin and GUI settings
+# 4. Reboot
 sudo reboot
 ```
 
-After reboot:
+That's it! Insert a USB device to test scanning.
 
-1. ArgusPi GUI should appear automatically on screen
-2. Insert a USB device to test scanning
-3. Watch the GUI respond with status updates
+### Performance Note
 
-## 📋 Configuration Options
+**Enable ClamAV during setup for best performance!** Without ClamAV, scanning 1000 files takes ~5.5 hours. With ClamAV, it takes ~10 minutes.
 
-During setup, you can configure:
+## 📚 Documentation
 
-| Option                 | Description                           | Default           | Performance Impact     |
-| ---------------------- | ------------------------------------- | ----------------- | ---------------------- |
-| **Station Name**       | Unique identifier for this station    | `arguspi-station` | SIEM event correlation |
-| **API Key**            | VirusTotal API key for cloud scanning | _Optional_        | Enables cloud analysis |
-| **Mount Path**         | Directory for mounting USB devices    | `/mnt/arguspi`    | N/A                    |
-| **Request Interval**   | Seconds between VirusTotal requests   | `20` (free tier)  | 4 requests/min max     |
-| **ClamAV Integration** | Enable local antivirus scanning       | `Yes`             | **🚀 HUGE speedup!**   |
-| **SIEM Integration**   | Send events to security monitoring    | `No`              | Enterprise visibility  |
-| **RGB LED**            | GPIO pins for status LED              | `17,27,22`        | N/A                    |
-| **GUI Interface**      | Enable touchscreen interface          | `Yes`             | N/A                    |
+- **[📋 Detailed Installation Guide](INSTALLATION.md)** - Complete setup instructions and configuration options
+- **[ Features & Configuration](FEATURES.md)** - All features, SIEM integration, and advanced settings
+- **[🐛 Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions for common issues and problems
+- **[🤝 Contributing Guidelines](CONTRIBUTING.md)** - How to contribute to the project
 
-> **💡 Pro Tip**: For best results, enable ClamAV! It provides fast local scanning whether you're online or offline.
->
-> **🏷️ Station Naming**: Use descriptive station names like `reception-desk`, `lab-entrance`, or `security-checkpoint-1` to easily identify which ArgusPi generated each security event in multi-station deployments!
+## 📊 Scanning Modes
 
-### Manual Configuration
+| Mode                 | Speed         | Requirements      | Use Case                       |
+| -------------------- | ------------- | ----------------- | ------------------------------ |
+| **Offline (ClamAV)** | ~10 minutes\* | None              | Air-gapped/secure environments |
+| **Online + ClamAV**  | ~10 minutes\* | Internet, API key | Best performance + detection   |
+| **Cloud-only**       | ~5.5 hours\*  | Internet, API key | Maximum cloud analysis         |
 
-Edit `/etc/arguspi/config.json`:
-
-**Online Mode Configuration:**
-
-```json
-{
-  "station_name": "arguspi-station",
-  "api_key": "your_virustotal_api_key_here",
-  "mount_base": "/mnt/arguspi",
-  "request_interval": 20,
-  "use_clamav": true,
-  "use_led": true,
-  "led_pins": { "red": 17, "green": 27, "blue": 22 },
-  "use_gui": true,
-  "siem_enabled": false
-}
-```
-
-**Offline/Air-Gapped Mode Configuration:**
-
-```json
-{
-  "station_name": "secure-lab-entrance",
-  "api_key": "",
-  "mount_base": "/mnt/arguspi",
-  "request_interval": 20,
-  "use_clamav": true,
-  "use_led": true,
-  "led_pins": { "red": 17, "green": 27, "blue": 22 },
-  "use_gui": true,
-  "siem_enabled": false
-}
-```
-
-**Enterprise SIEM Integration (Syslog):**
-
-```json
-{
-  "station_name": "reception-desk",
-  "api_key": "your_virustotal_api_key_here",
-  "mount_base": "/mnt/arguspi",
-  "request_interval": 20,
-  "use_clamav": true,
-  "use_led": true,
-  "led_pins": { "red": 17, "green": 27, "blue": 22 },
-  "use_gui": true,
-  "siem_enabled": true,
-  "siem_type": "syslog",
-  "siem_server": "splunk.company.com",
-  "siem_port": 514,
-  "siem_facility": "local0"
-}
-```
-
-**Enterprise SIEM Integration (HTTP Webhook):**
-
-```json
-{
-  "station_name": "security-checkpoint-1",
-  "api_key": "your_virustotal_api_key_here",
-  "mount_base": "/mnt/arguspi",
-  "request_interval": 20,
-  "use_clamav": true,
-  "use_led": true,
-  "led_pins": { "red": 17, "green": 27, "blue": 22 },
-  "use_gui": true,
-  "siem_enabled": true,
-  "siem_type": "webhook",
-  "siem_webhook_url": "https://your-siem.com/api/events",
-  "siem_headers": {
-    "Authorization": "Bearer your-api-token"
-  }
-}
-```
-
-> **🔒 Air-Gapped Security**: When `api_key` is empty, ArgusPi runs in offline mode with local ClamAV scanning only - perfect for secure environments!
->
-> **🔗 SIEM Integration**: Send structured security events to Splunk, ELK Stack, QRadar, or any system that supports syslog/HTTP webhooks!
+_\*For 1000 files. Actual times vary based on file sizes and types._
 
 ## 🔧 Service Management
-
-ArgusPi runs as a systemd service:
 
 ```bash
 # Check status
@@ -229,464 +94,7 @@ sudo journalctl -u arguspi -f
 
 # Restart service
 sudo systemctl restart arguspi
-
-# Stop service
-sudo systemctl stop arguspi
-
-# Disable service
-sudo systemctl disable arguspi
 ```
-
-## 📊 Understanding Scan Results
-
-### Status Indicators
-
-| Status       | LED Color      | GUI Color | Description             |
-| ------------ | -------------- | --------- | ----------------------- |
-| **Waiting**  | Blue           | Blue      | Ready for USB insertion |
-| **Scanning** | Yellow         | Yellow    | Analyzing files         |
-| **Clean**    | Green          | Green     | No threats detected     |
-| **Infected** | Red (solid)    | Red       | Malware found           |
-| **Error**    | Red (blinking) | Red       | Scan error occurred     |
-
-### Log Format
-
-```
-2025-09-20 14:30:15 [ArgusPi-INFO] - ArgusPi detected USB device /dev/sdb1
-2025-09-20 14:30:16 [ArgusPi-INFO] - Mounted /dev/sdb1 at /mnt/arguspi/sdb1
-2025-09-20 14:30:20 [ArgusPi-INFO] - CLEAN | a1b2c3d4... | document.pdf | details: {...}
-```
-
-## � SIEM Integration
-
-ArgusPi can send structured security events to your SIEM platform for centralized monitoring and analysis.
-
-### Supported SIEM Platforms
-
-- **Splunk** - Via syslog or HTTP Event Collector
-- **Elastic Stack (ELK)** - Via Logstash syslog input
-- **IBM QRadar** - Via syslog or REST API
-- **Microsoft Sentinel** - Via Log Analytics API
-- **Any RFC 5424 compliant SIEM** - Via syslog
-- **Custom systems** - Via HTTP webhooks
-
-### Event Types
-
-ArgusPi generates the following structured events:
-
-| Event Type        | Description                | Severity | Triggers                    |
-| ----------------- | -------------------------- | -------- | --------------------------- |
-| `scan_started`    | USB device scan begins     | Low      | USB insertion               |
-| `scan_completed`  | Scan finished with results | Low/High | Scan completion             |
-| `threat_detected` | Malware found on device    | High     | ClamAV/VirusTotal detection |
-| `scan_error`      | Scan failed or interrupted | Medium   | Device removal, errors      |
-
-### Sample SIEM Event
-
-```json
-{
-  "timestamp": "2025-09-20T14:30:00Z",
-  "source": "arguspi",
-  "station_name": "reception-desk",
-  "hostname": "raspberrypi",
-  "event_type": "threat_detected",
-  "severity": "high",
-  "data": {
-    "file_path": "/mnt/arguspi/sdb1/suspicious.exe",
-    "file_name": "suspicious.exe",
-    "file_hash": "a1b2c3d4...",
-    "device": "sdb1",
-    "detection_method": "virustotal",
-    "malicious_count": 45,
-    "suspicious_count": 12,
-    "total_engines": 70
-  }
-}
-```
-
-### Configuration Examples
-
-**Splunk Integration:**
-
-```bash
-# Configure during setup or edit /etc/arguspi/config.json
-"siem_enabled": true,
-"siem_type": "syslog",
-"siem_server": "splunk-indexer.company.com",
-"siem_port": 514,
-"siem_facility": "local0"
-```
-
-**Custom Webhook:**
-
-```bash
-"siem_enabled": true,
-"siem_type": "webhook",
-"siem_webhook_url": "https://your-siem.com/api/events",
-"siem_headers": {
-  "Authorization": "Bearer your-token",
-  "Content-Type": "application/json"
-}
-```
-
-## �🔒 Security Features
-
-ArgusPi implements multiple security layers:
-
-1. **Hardware Read-Only** - USB devices are locked using `hdparm -r1`
-2. **Secure Mounting** - Filesystems mounted with restrictive options
-3. **Process Isolation** - Runs with minimal required privileges
-4. **Thread Safety** - Proper synchronization for concurrent operations
-5. **Resource Cleanup** - Automatic unmounting on shutdown
-6. **Input Validation** - All configuration values are validated
-
-## ⚡ Performance & Scanning Behavior
-
-### How ArgusPi Scans Files
-
-ArgusPi supports **three scanning modes** to fit different environments and security requirements:
-
-#### Offline Mode (Air-Gapped/Secure Environments)
-
-- **Local ClamAV scanning only** - no internet required
-- **Fast and secure** - all scanning happens locally
-- **Perfect for**: Corporate environments, classified networks, secure facilities
-- **Example**: 1000 files scanned in ~10 minutes
-
-#### Online Mode Without ClamAV
-
-- **Every file** on the USB device is sent to VirusTotal
-- **Timing**: 20 seconds per file (free tier limit)
-- **Example**: 1000 files = ~5.5 hours scanning time! ⏰
-
-#### Online Mode With ClamAV (Recommended)
-
-- **Step 1**: ClamAV quickly scans each file locally (seconds)
-- **Step 2**: Only suspicious/infected files go to VirusTotal
-- **Result**: Best of both worlds - fast local + cloud intelligence
-
-### Performance Comparison
-
-| USB Contents     | Offline Mode    | Online (no ClamAV) | Online + ClamAV |
-| ---------------- | --------------- | ------------------ | --------------- |
-| 100 clean files  | **~2 minutes**  | ~33 minutes        | **~2 minutes**  |
-| 500 clean files  | **~5 minutes**  | ~2.8 hours         | **~5 minutes**  |
-| 1000 clean files | **~10 minutes** | ~5.5 hours         | **~10 minutes** |
-
-> **🚀 Speed Champions**: Offline mode and Online+ClamAV both deliver fast scanning!
-
-### Enable ClamAV for Better Performance
-
-```bash
-# Install ClamAV
-sudo apt-get update
-sudo apt-get install clamav clamav-daemon
-
-# Update virus definitions
-sudo freshclam
-
-# Enable in ArgusPi config
-sudo nano /etc/arguspi/config.json
-# Set: "use_clamav": true
-
-# Restart service
-sudo systemctl restart arguspi
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**ArgusPi service won't start**
-
-```bash
-# Check service status
-sudo systemctl status arguspi
-
-# Check configuration
-sudo python3 -c "import json; print(json.load(open('/etc/arguspi/config.json')))"
-```
-
-**USB devices not detected**
-
-```bash
-# Check udev rules
-ls -la /etc/udev/rules.d/90-arguspi-readonly.rules
-
-# Reload udev rules
-sudo udevadm control --reload
-```
-
-**VirusTotal API errors**
-
-```bash
-# Test API key manually
-curl -H "x-apikey: YOUR_API_KEY" https://www.virustotal.com/api/v3/files/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-```
-
-**GUI not displaying**
-
-If the ArgusPi GUI doesn't appear on screen after reboot:
-
-```bash
-# Step 1: Check what user account was detected during setup
-# Look for "Desktop user detected: " in the setup output
-# Or check manually:
-whoami
-echo $HOME
-
-# Step 2: Check if desktop autostart entry exists for YOUR user
-# Replace 'pi' with your actual username if different
-ls -la $HOME/.config/autostart/arguspi.desktop
-cat $HOME/.config/autostart/arguspi.desktop
-
-# Step 3: Check if autologin is enabled for your user
-sudo raspi-config nonint get_boot_behaviour
-# Should return 4 for Desktop Autologin
-
-# Step 4: Test GUI manually to isolate the issue
-python3 /usr/local/bin/arguspi_scan_station.py
-
-# Step 5: Check for running processes
-ps aux | grep arguspi
-
-# Step 6: Check desktop environment
-echo $DESKTOP_SESSION
-echo $XDG_CURRENT_DESKTOP
-
-# Step 7: Test basic Tkinter functionality
-python3 -c "import tkinter; root = tkinter.Tk(); root.title('Test GUI'); root.after(3000, root.quit); root.mainloop()"
-
-# Step 8: Check system logs for errors
-journalctl --user -f | grep -i arguspi
-```
-
-**Common solutions:**
-
-**If autostart file is missing or in wrong location:**
-
-```bash
-# Find your actual username and home directory
-USERNAME=$(whoami)
-HOMEDIR=$HOME
-
-# Recreate the desktop autostart entry for YOUR user
-mkdir -p $HOME/.config/autostart
-cat > $HOME/.config/autostart/arguspi.desktop << EOF
-[Desktop Entry]
-Type=Application
-Name=ArgusPi USB Security Scanner
-Exec=python3 /usr/local/bin/arguspi_scan_station.py
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-Comment=ArgusPi USB Security Scanner GUI
-EOF
-
-# Fix ownership (replace USERNAME with your actual username)
-sudo chown -R $USERNAME:$USERNAME $HOME/.config
-```
-
-**If GUI starts manually but not on boot:**
-
-```bash
-# Add delay to autostart (some systems need time for desktop to load)
-sed -i 's/Exec=python3/Exec=sh -c "sleep 10 && python3"/' /home/pi/.config/autostart/arguspi.desktop
-
-# Alternative: Use systemd user service instead
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/arguspi.service << EOF
-[Unit]
-Description=ArgusPi GUI
-After=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=python3 /usr/local/bin/arguspi_scan_station.py
-Restart=always
-Environment=DISPLAY=:0
-
-[Install]
-WantedBy=default.target
-EOF
-
-# Enable user service
-systemctl --user enable arguspi.service
-systemctl --user start arguspi.service
-```
-
-**If using Wayland instead of X11:**
-
-```bash
-# Check display server
-echo $XDG_SESSION_TYPE
-
-# If Wayland, switch to X11 or set environment
-# Edit autostart file to include Wayland support
-sed -i 's/Exec=python3/Exec=env GDK_BACKEND=x11 python3/' /home/pi/.config/autostart/arguspi.desktop
-```
-
-**Manual desktop autostart setup** (if automatic configuration failed):
-
-```bash
-# Use YOUR actual username and home directory
-USERNAME=$(whoami)
-HOMEDIR=$HOME
-
-# Create autostart directory for your user
-mkdir -p $HOME/.config/autostart
-
-# Create desktop entry
-cat > $HOME/.config/autostart/arguspi.desktop << EOF
-[Desktop Entry]
-Type=Application
-Name=ArgusPi USB Security Scanner
-Exec=python3 /usr/local/bin/arguspi_scan_station.py
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-Comment=ArgusPi USB Security Scanner GUI
-EOF
-
-# Fix ownership for your user
-sudo chown -R $USERNAME:$USERNAME $HOME/.config
-```
-
-**Configure autologin for GUI** (required for automatic GUI startup):
-
-```bash
-# Method 1: Using raspi-config (recommended)
-sudo raspi-config
-# Navigate to: System Options → Boot / Auto Login → Desktop Autologin
-
-# Method 2: Direct systemd configuration (if raspi-config unavailable)
-USERNAME=$(whoami)
-sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
-sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin $USERNAME --noclear %I \$TERM
-EOF
-sudo systemctl daemon-reload
-sudo systemctl enable getty@tty1.service
-```
-
-**Scanning is very slow**
-
-The most common cause is not using ClamAV! See the [Performance section](#-performance--scanning-behavior) above.
-
-```bash
-# Quick fix: Enable ClamAV
-sudo apt-get install clamav clamav-daemon
-sudo freshclam
-# Edit config: "use_clamav": true
-sudo systemctl restart arguspi
-```
-
-**Out of VirusTotal API quota**
-
-```bash
-# Check current usage in logs
-sudo tail -f /var/log/arguspi.log | grep -i "quota\|limit"
-
-# Consider upgrading VirusTotal plan or enabling ClamAV to reduce API calls
-```
-
-### Log Locations
-
-- **Service logs**: `sudo journalctl -u arguspi`
-- **Scan results**: `/var/log/arguspi.log`
-- **System logs**: `/var/log/syslog`
-
-## 🔄 Updating ArgusPi
-
-To update to a newer version:
-
-```bash
-# Stop any running ArgusPi processes
-sudo systemctl stop arguspi 2>/dev/null || true
-pkill -f arguspi_scan_station.py 2>/dev/null || true
-
-# Update code
-git pull origin main
-
-# Run setup again to apply new configurations
-sudo python3 arguspi_setup.py
-
-# Reboot to ensure clean startup
-sudo reboot
-```
-
-**After updating, if GUI doesn't start:**
-
-```bash
-# 1. Verify new desktop autostart was created
-cat /home/pi/.config/autostart/arguspi.desktop
-
-# 2. Check if old systemd service is interfering
-sudo systemctl status arguspi
-sudo systemctl stop arguspi 2>/dev/null || true
-sudo systemctl disable arguspi 2>/dev/null || true
-
-# 3. Test manual startup
-python3 /usr/local/bin/arguspi_scan_station.py
-
-# 4. If manual works but autostart doesn't, try user systemd service
-systemctl --user enable ~/.config/systemd/user/arguspi.service 2>/dev/null || echo "User service not found - using desktop autostart"
-```
-
-## 🚀 Future Enhancements
-
-ArgusPi is actively developed with exciting features planned:
-
-### 🎯 **Roadmap**
-
-- **📋 USB Device Whitelisting** - Skip scanning for trusted devices
-  - Configure by vendor ID, product ID, serial number, or device label
-  - Useful for personal devices, company-issued storage, or backup drives
-  - Maintains security while improving workflow efficiency
-- **📱 Mobile Integration** - Smartphone app for remote monitoring and notifications
-- **🔌 Hardware Extensions** - Support for additional LED configurations and display types
-- **📊 Advanced Analytics** - Detailed scan statistics, threat trends, and reporting dashboards
-- **🌐 Network Integration** - Central management for multiple ArgusPi stations
-- **🔒 Enhanced Security** - Support for additional antivirus engines and threat intelligence feeds
-
-### 💡 **Want to contribute?**
-
-See our [Contributing Guidelines](CONTRIBUTING.md) to help bring these features to life!
-
-## 🧪 Development & Testing
-
-### Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/silverday/arguspi.git
-cd arguspi
-
-# Install dependencies
-pip3 install -r requirements.txt
-
-# Run in development mode
-sudo python3 arguspi_scan_station.py
-```
-
-### Testing
-
-```bash
-# Test with a clean USB device
-# Check logs for expected behavior
-
-# Test with EICAR test file
-# Should detect as malware
-```
-
-## 📈 Performance Considerations
-
-- **Free VirusTotal Tier**: 4 requests/minute (500/day)
-- **Memory Usage**: ~50MB base + file caching
-- **Storage**: Minimal, only configuration and logs
-- **CPU Impact**: Low, I/O bound operations
 
 ## 🤝 Contributing
 
@@ -703,13 +111,6 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 ## 📄 License
 
 ArgusPi is released under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **VirusTotal** for their excellent API
-- **Raspberry Pi Foundation** for amazing hardware
-- **Python community** for fantastic libraries
-- **Security researchers** who make tools like this necessary
 
 ## 📞 Support
 
