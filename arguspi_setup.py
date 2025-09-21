@@ -1082,66 +1082,6 @@ def get_desktop_user() -> tuple:
     return current_user, 1000, 1000, f"/home/{current_user}"
 
 
-def configure_autologin() -> bool:
-    """Configure Raspberry Pi to automatically login to desktop for GUI display."""
-    try:
-        print("Configuring desktop autologin for GUI display...")
-        
-        # Get the actual desktop user
-        username, uid, gid, homedir = get_desktop_user()
-        
-        # Method 1: Use raspi-config to enable desktop autologin
-        try:
-            result = subprocess.run(
-                ["raspi-config", "nonint", "do_boot_behaviour", "B4"], 
-                check=True, 
-                capture_output=True, 
-                text=True
-            )
-            print("✓ Desktop autologin configured successfully via raspi-config")
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            print(f"⚠ raspi-config method failed: {e}")
-        
-        # Method 2: Direct systemd configuration for modern systems
-        try:
-            print("Attempting direct systemd autologin configuration...")
-            
-            # Create getty override directory
-            override_dir = "/etc/systemd/system/getty@tty1.service.d"
-            os.makedirs(override_dir, exist_ok=True)
-            
-            # Create autologin override
-            override_content = f"""[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin {username} --noclear %I $TERM
-"""
-            
-            override_file = os.path.join(override_dir, "autologin.conf")
-            with open(override_file, "w") as f:
-                f.write(override_content)
-            
-            # Reload systemd
-            subprocess.run(["systemctl", "daemon-reload"], check=True)
-            subprocess.run(["systemctl", "enable", "getty@tty1.service"], check=True)
-            
-            print(f"✓ Direct systemd autologin configured for user: {username}")
-            return True
-            
-        except Exception as e:
-            print(f"⚠ Direct systemd configuration failed: {e}")
-        
-        print("⚠ Warning: Automatic autologin configuration failed")
-        print("  Manual configuration required:")
-        print(f"  sudo raspi-config → System Options → Boot / Auto Login → Desktop Autologin")
-        print(f"  Or manually configure autologin for user: {username}")
-        return False
-        
-    except Exception as e:
-        print(f"⚠ Warning: Autologin configuration error: {e}")
-        return False
-
-
 def create_desktop_autostart(config: dict) -> bool:
     """Create desktop autostart entry for ArgusPi GUI."""
     if not config.get("use_gui", True):
@@ -1201,7 +1141,7 @@ Comment=ArgusPi USB Security Scanner GUI
             
             # Also provide manual instructions
             print("\nDesktop autostart file created. If GUI doesn't start automatically:")
-            print(f"  1. Verify autologin is enabled for user: {username}")
+            print(f"  1. Enable desktop autologin using: sudo raspi-config")
             print(f"  2. Check file exists: ls -la {desktop_entry_path}")
             print(f"  3. Test manually: python3 /usr/local/bin/arguspi_scan_station.py")
             return True
@@ -1275,16 +1215,21 @@ def main() -> None:
     deploy_scanning_script(config)
     create_udev_rule()
     
-    # Configure autologin for GUI display (if GUI is enabled)
+    # Configure GUI autostart (if GUI is enabled)
     if config.get("use_gui", True):
         print("\n--- GUI Configuration ---")
-        autologin_success = configure_autologin()
         autostart_success = create_desktop_autostart(config)
         
-        if autologin_success and autostart_success:
-            print("✓ GUI configuration completed successfully")
+        if autostart_success:
+            print("✓ Desktop autostart configured successfully")
+            print("\n⚠ IMPORTANT: Manual autologin configuration required")
+            print("  After setup completes, enable desktop autologin:")
+            print("  1. Run: sudo raspi-config")
+            print("  2. Navigate to: System Options → Boot / Auto Login → Desktop Autologin")
+            print("  3. Select your user account")
+            print("  4. Reboot to activate GUI autostart")
         else:
-            print("⚠ GUI configuration completed with warnings")
+            print("⚠ GUI configuration failed")
             print("  See troubleshooting output above for manual steps")
     
     create_systemd_service()
@@ -1309,10 +1254,10 @@ def main() -> None:
     if config.get("use_gui", True):
         print()
         print("📺 GUI Configuration:")
-        print("  - Desktop autologin has been configured")
         print("  - GUI autostart has been configured")
-        print("  - ArgusPi GUI will appear automatically after reboot")
-        print("  - Reboot recommended: sudo reboot")
+        print("  - IMPORTANT: You must manually enable desktop autologin")
+        print("  - Run: sudo raspi-config → System Options → Boot / Auto Login → Desktop Autologin")
+        print("  - Then reboot: sudo reboot")
     
     print()
     print("🔌 Testing: Insert a USB device to test scanning")

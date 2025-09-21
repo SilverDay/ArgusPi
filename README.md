@@ -84,11 +84,26 @@ The setup script will:
 - ✅ Validate your VirusTotal API key
 - ✅ Configure system paths and settings
 - ✅ Install required packages (handles modern Python environments automatically)
-- ✅ Configure desktop autologin for GUI display
+- ✅ Create GUI desktop autostart entry
 - ✅ Create systemd service with proper GUI support
 - ✅ Set up USB auto-detection rules
 
-### 4. Reboot and Test
+### 4. Enable Desktop Autologin (Required for GUI)
+
+For the ArgusPi GUI to start automatically, you must manually enable desktop autologin:
+
+```bash
+# Run Raspberry Pi configuration tool
+sudo raspi-config
+```
+
+Then navigate to:
+
+1. **System Options** → **Boot / Auto Login** → **Desktop Autologin**
+2. Select your user account
+3. Exit raspi-config and reboot
+
+### 5. Reboot and Test
 
 ```bash
 # Reboot to activate autologin and GUI settings
@@ -537,14 +552,14 @@ EOF
 sudo chown -R $USERNAME:$USERNAME $HOME/.config
 ```
 
-**Manual autologin setup** (if automatic configuration failed):
+**Configure autologin for GUI** (required for automatic GUI startup):
 
 ```bash
-# Method 1: Using raspi-config
+# Method 1: Using raspi-config (recommended)
 sudo raspi-config
 # Navigate to: System Options → Boot / Auto Login → Desktop Autologin
 
-# Method 2: Direct systemd configuration (if raspi-config fails)
+# Method 2: Direct systemd configuration (if raspi-config unavailable)
 USERNAME=$(whoami)
 sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
 sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
