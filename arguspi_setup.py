@@ -1184,7 +1184,7 @@ def create_desktop_autostart(config: dict) -> bool:
     except Exception as e:
         print(f"⚠ Warning: Could not configure GUI startup: {e}")
         print("Manual configuration required:")
-        print("  After reboot, start GUI manually with: sudo python3 /usr/local/bin/arguspi_scan_station.py")
+        print("  After reboot, start GUI manually with: python3 /usr/local/bin/arguspi_scan_station.py")
         print("  Or enable systemd service with: sudo systemctl enable arguspi && sudo systemctl start arguspi")
         return False
 
