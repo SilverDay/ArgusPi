@@ -83,15 +83,22 @@ The setup script will:
 
 - ✅ Validate your VirusTotal API key
 - ✅ Configure system paths and settings
-- ✅ Install required packages
-- ✅ Create systemd service
+- ✅ Install required packages (handles modern Python environments automatically)
+- ✅ Configure desktop autologin for GUI display
+- ✅ Create systemd service with proper GUI support
 - ✅ Set up USB auto-detection rules
 
-### 4. Test Your Installation
+### 4. Reboot and Test
 
-1. Insert a USB device
-2. Watch the LED status indicator or GUI
-3. Check logs: `sudo journalctl -u arguspi -f`
+```bash
+# Reboot to activate autologin and GUI settings
+sudo reboot
+```
+
+After reboot:
+1. ArgusPi GUI should appear automatically on screen
+2. Insert a USB device to test scanning
+3. Watch the GUI respond with status updates
 
 ## 📋 Configuration Options
 
@@ -403,12 +410,29 @@ curl -H "x-apikey: YOUR_API_KEY" https://www.virustotal.com/api/v3/files/e3b0c44
 
 **GUI not displaying**
 
+If the ArgusPi GUI doesn't appear on screen:
+
 ```bash
-# Check X11 display
+# Check if autologin is enabled
+sudo raspi-config nonint get_boot_behaviour
+
+# Check if X11 display is available
 echo $DISPLAY
 
-# Test Tkinter
+# Test Tkinter GUI support
 python3 -c "import tkinter; print('Tkinter works')"
+
+# Check ArgusPi service status
+sudo systemctl status arguspi
+
+# View GUI-related logs
+sudo journalctl -u arguspi | grep -i "display\|gui\|tkinter"
+```
+
+**Manual autologin setup** (if automatic configuration failed):
+```bash
+sudo raspi-config
+# Navigate to: System Options → Boot / Auto Login → Desktop Autologin
 ```
 
 **Scanning is very slow**

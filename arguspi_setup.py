@@ -1017,17 +1017,20 @@ def create_systemd_service() -> None:
     service_content = f"""
 [Unit]
 Description=ArgusPi USB Security Scanner
-After=network.target
+After=graphical-session.target
+Wants=graphical-session.target
 
 [Service]
 Type=simple
+User=pi
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 ExecStart=/usr/bin/env python3 /usr/local/bin/arguspi_scan_station.py
 Restart=always
 RestartSec=5
-User=root
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical-session.target
 """
     with open(service_path, "w") as f:
         f.write(service_content.strip() + "\n")
@@ -1036,6 +1039,34 @@ WantedBy=multi-user.target
     subprocess.run(["systemctl", "enable", "arguspi.service"], check=False)
     subprocess.run(["systemctl", "restart", "arguspi.service"], check=False)
     print("✓ ArgusPi service enabled and started.")
+
+
+def configure_autologin() -> None:
+    """Configure Raspberry Pi to automatically login to desktop for GUI display."""
+    try:
+        print("Configuring desktop autologin for GUI display...")
+        
+        # Use raspi-config to enable desktop autologin (Boot to Desktop with autologin)
+        result = subprocess.run(
+            ["raspi-config", "nonint", "do_boot_behaviour", "B4"], 
+            check=True, 
+            capture_output=True, 
+            text=True
+        )
+        
+        print("✓ Desktop autologin configured successfully")
+        print("  ArgusPi GUI will appear on the screen after reboot")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"⚠ Warning: Could not configure autologin automatically: {e}")
+        print("  You may need to enable desktop autologin manually:")
+        print("  sudo raspi-config → System Options → Boot / Auto Login → Desktop Autologin")
+        return False
+    except FileNotFoundError:
+        print("⚠ Warning: raspi-config not found - manual configuration needed:")
+        print("  Enable desktop autologin for ArgusPi GUI to display properly")
+        return False
 
 
 def main() -> None:
@@ -1062,6 +1093,11 @@ def main() -> None:
     install_packages(config)
     deploy_scanning_script(config)
     create_udev_rule()
+    
+    # Configure autologin for GUI display (if GUI is enabled)
+    if config.get("use_gui", True):
+        configure_autologin()
+    
     create_systemd_service()
     # Create mount base directory
     os.makedirs(config["mount_base"], exist_ok=True)
@@ -1070,12 +1106,21 @@ def main() -> None:
     print("✓ ArgusPi USB scan station setup complete!")
     print()
     print("Your Raspberry Pi is now configured as an ArgusPi")
-    print("USB security scanning station. Insert a USB device")
-    print("to test the scanning functionality.")
+    print("USB security scanning station.")
+    
+    if config.get("use_gui", True):
+        print()
+        print("📺 GUI Configuration:")
+        print("  - Desktop autologin has been configured")
+        print("  - ArgusPi GUI will appear on screen after reboot")
+        print("  - Reboot recommended: sudo reboot")
+    
     print()
-    print(f"View logs with: sudo journalctl -u arguspi -f")
-    print(f"Configuration: /etc/arguspi/config.json")
-    print(f"Log file: /var/log/arguspi.log")
+    print("🔌 Testing: Insert a USB device to test scanning")
+    print()
+    print(f"📊 Monitor logs: sudo journalctl -u arguspi -f")
+    print(f"⚙️  Configuration: /etc/arguspi/config.json")
+    print(f"📋 Log file: /var/log/arguspi.log")
     print("=" * 50)
 
 
