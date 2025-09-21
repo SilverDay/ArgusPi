@@ -1039,21 +1039,22 @@ def create_systemd_service(config: dict) -> None:
         username, uid, gid, homedir = get_desktop_user()
         service_content = f"""[Unit]
 Description=ArgusPi USB Security Scanner with GUI
-After=graphical-session.target
-Wants=graphical-session.target
+After=graphical.target
+Wants=graphical.target
 
 [Service]
 Type=simple
-User=root
+User={username}
+Group={username}
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/{uid}
 Environment=HOME={homedir}
-ExecStart=/usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
+ExecStart=/usr/bin/sudo /usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
 Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
 """
     else:
         # Non-GUI mode - simpler service
@@ -1245,6 +1246,7 @@ def main() -> None:
     
     deploy_scanning_script(config)
     create_udev_rule()
+    create_systemd_service(config)
     
     # Configure GUI autostart (if GUI is enabled)
     if config.get("use_gui", True):
@@ -1252,26 +1254,19 @@ def main() -> None:
         autostart_success = create_desktop_autostart(config)
         
         if autostart_success:
-            print("✓ Desktop autostart configured successfully")
-            print("\n⚠ IMPORTANT: Manual autologin configuration required")
-            print("  After setup completes, enable desktop autologin:")
-            print("  1. Run: sudo raspi-config")
-            print("  2. Navigate to: System Options → Boot / Auto Login → Desktop Autologin")
-            print("  3. Select your user account")
-            print("  4. Reboot to activate GUI autostart")
+            print("✓ GUI startup configured successfully")
+            print("  ArgusPi will start automatically after reboot via systemd service")
         else:
             print("⚠ GUI configuration failed")
             print("  See troubleshooting output above for manual steps")
+    else:
+        # For non-GUI mode, just mention the service exists but don't enable it
+        print("\n--- Background Service ---")
+        print("✓ SystemD service created but not enabled (GUI disabled)")
+        print("  Enable manually if needed: sudo systemctl enable arguspi")
     
-    create_systemd_service(config)
-    
-    # Stop and disable systemd service if it's running (we use desktop autostart for GUI)
-    try:
-        subprocess.run(["systemctl", "stop", "arguspi.service"], check=False, capture_output=True)
-        subprocess.run(["systemctl", "disable", "arguspi.service"], check=False, capture_output=True)
-        print("✓ Disabled systemd service (using desktop autostart for GUI)")
-    except:
-        pass
+    # Remove the duplicate create_systemd_service call and the disable logic
+    # since we now properly configure the service based on GUI mode
     
     # Create mount base directory
     os.makedirs(config["mount_base"], exist_ok=True)

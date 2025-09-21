@@ -353,7 +353,7 @@ sudo python3 -c "
 import subprocess
 import time
 start = time.time()
-result = subprocess.run(['clamscan', '/usr/local/bin/arguspi_scan_station.py'], 
+result = subprocess.run(['clamscan', '/usr/local/bin/arguspi_scan_station.py'],
                        capture_output=True, text=True)
 print(f'ClamAV scan took {time.time() - start:.2f} seconds')
 print(f'Result: {result.returncode}')

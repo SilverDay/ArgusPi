@@ -52,15 +52,11 @@ cd arguspi
 # 2. Run the setup script
 sudo python3 arguspi_setup.py
 
-# 3. Enable desktop autologin (for GUI)
-sudo raspi-config
-# Navigate to: System Options → Boot / Auto Login → Desktop Autologin
-
-# 4. Reboot
+# 3. Reboot to start ArgusPi
 sudo reboot
 ```
 
-That's it! Insert a USB device to test scanning.
+That's it! ArgusPi will start automatically after reboot. Insert a USB device to test scanning.
 
 ### Performance Note
 
