@@ -96,6 +96,7 @@ sudo reboot
 ```
 
 After reboot:
+
 1. ArgusPi GUI should appear automatically on screen
 2. Insert a USB device to test scanning
 3. Watch the GUI respond with status updates
@@ -422,14 +423,39 @@ echo $DISPLAY
 # Test Tkinter GUI support
 python3 -c "import tkinter; print('Tkinter works')"
 
-# Check ArgusPi service status
-sudo systemctl status arguspi
+# Check if desktop autostart entry exists
+ls -la /home/pi/.config/autostart/arguspi.desktop
 
-# View GUI-related logs
-sudo journalctl -u arguspi | grep -i "display\|gui\|tkinter"
+# Manually start ArgusPi GUI for testing
+python3 /usr/local/bin/arguspi_scan_station.py
+
+# Check for GUI process running
+ps aux | grep arguspi
+```
+
+**Manual desktop autostart setup** (if automatic configuration failed):
+```bash
+# Create autostart directory
+mkdir -p /home/pi/.config/autostart
+
+# Create desktop entry
+cat > /home/pi/.config/autostart/arguspi.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=ArgusPi USB Security Scanner
+Exec=python3 /usr/local/bin/arguspi_scan_station.py
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Comment=ArgusPi USB Security Scanner GUI
+EOF
+
+# Fix ownership
+sudo chown -R pi:pi /home/pi/.config
 ```
 
 **Manual autologin setup** (if automatic configuration failed):
+
 ```bash
 sudo raspi-config
 # Navigate to: System Options → Boot / Auto Login → Desktop Autologin

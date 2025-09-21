@@ -1012,11 +1012,11 @@ ACTION=="remove", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partiti
 
 
 def create_systemd_service() -> None:
-    """Create and enable the ArgusPi systemd service to run the scanning daemon."""
+    """Create ArgusPi systemd service as backup (disabled by default for GUI mode)."""
     service_path = "/etc/systemd/system/arguspi.service"
     service_content = f"""
 [Unit]
-Description=ArgusPi USB Security Scanner
+Description=ArgusPi USB Security Scanner (Background Service)
 After=graphical-session.target
 Wants=graphical-session.target
 
@@ -1036,9 +1036,11 @@ WantedBy=graphical-session.target
         f.write(service_content.strip() + "\n")
     print(f"✓ ArgusPi systemd service file created at {service_path}")
     subprocess.run(["systemctl", "daemon-reload"], check=False)
-    subprocess.run(["systemctl", "enable", "arguspi.service"], check=False)
-    subprocess.run(["systemctl", "restart", "arguspi.service"], check=False)
-    print("✓ ArgusPi service enabled and started.")
+    # Don't enable by default - desktop autostart handles GUI mode
+    # subprocess.run(["systemctl", "enable", "arguspi.service"], check=False)
+    # subprocess.run(["systemctl", "restart", "arguspi.service"], check=False)
+    print("✓ ArgusPi systemd service created (use desktop autostart for GUI)")
+    print("  Enable systemd service manually if needed: sudo systemctl enable arguspi")
 
 
 def configure_autologin() -> None:
@@ -1066,6 +1068,57 @@ def configure_autologin() -> None:
     except FileNotFoundError:
         print("⚠ Warning: raspi-config not found - manual configuration needed:")
         print("  Enable desktop autologin for ArgusPi GUI to display properly")
+        return False
+
+
+def create_desktop_autostart(config: dict) -> None:
+    """Create desktop autostart entry for ArgusPi GUI."""
+    if not config.get("use_gui", True):
+        return
+        
+    try:
+        print("Setting up desktop autostart for ArgusPi GUI...")
+        
+        # Create autostart directory for pi user
+        autostart_dir = "/home/pi/.config/autostart"
+        os.makedirs(autostart_dir, exist_ok=True)
+        
+        # Create desktop entry for ArgusPi
+        desktop_entry_path = os.path.join(autostart_dir, "arguspi.desktop")
+        desktop_entry_content = f"""[Desktop Entry]
+Type=Application
+Name=ArgusPi USB Security Scanner
+Exec=python3 /usr/local/bin/arguspi_scan_station.py
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Comment=ArgusPi USB Security Scanner GUI
+"""
+        
+        with open(desktop_entry_path, "w") as f:
+            f.write(desktop_entry_content)
+        
+        # Set proper ownership to pi user
+        import pwd
+        pi_uid = pwd.getpwnam("pi").pw_uid
+        pi_gid = pwd.getpwnam("pi").pw_gid
+        
+        # Set ownership recursively for the autostart directory
+        for root, dirs, files in os.walk("/home/pi/.config"):
+            for directory in dirs:
+                dir_path = os.path.join(root, directory)
+                os.chown(dir_path, pi_uid, pi_gid)
+            for file in files:
+                file_path = os.path.join(root, file)
+                os.chown(file_path, pi_uid, pi_gid)
+        
+        print(f"✓ Desktop autostart configured at {desktop_entry_path}")
+        print("  ArgusPi GUI will start automatically with desktop session")
+        return True
+        
+    except Exception as e:
+        print(f"⚠ Warning: Could not configure desktop autostart: {e}")
+        print("  You may need to start ArgusPi GUI manually after login")
         return False
 
 
@@ -1097,8 +1150,18 @@ def main() -> None:
     # Configure autologin for GUI display (if GUI is enabled)
     if config.get("use_gui", True):
         configure_autologin()
+        create_desktop_autostart(config)
     
     create_systemd_service()
+    
+    # Stop and disable systemd service if it's running (we use desktop autostart for GUI)
+    try:
+        subprocess.run(["systemctl", "stop", "arguspi.service"], check=False, capture_output=True)
+        subprocess.run(["systemctl", "disable", "arguspi.service"], check=False, capture_output=True)
+        print("✓ Disabled systemd service (using desktop autostart for GUI)")
+    except:
+        pass
+    
     # Create mount base directory
     os.makedirs(config["mount_base"], exist_ok=True)
     print()
@@ -1112,15 +1175,16 @@ def main() -> None:
         print()
         print("📺 GUI Configuration:")
         print("  - Desktop autologin has been configured")
-        print("  - ArgusPi GUI will appear on screen after reboot")
+        print("  - GUI autostart has been configured")
+        print("  - ArgusPi GUI will appear automatically after reboot")
         print("  - Reboot recommended: sudo reboot")
     
     print()
     print("🔌 Testing: Insert a USB device to test scanning")
     print()
-    print(f"📊 Monitor logs: sudo journalctl -u arguspi -f")
+    print(f"📊 Monitor with GUI or logs: /var/log/arguspi.log")
     print(f"⚙️  Configuration: /etc/arguspi/config.json")
-    print(f"📋 Log file: /var/log/arguspi.log")
+    print(f"� Systemd service (if needed): sudo systemctl enable arguspi")
     print("=" * 50)
 
 
