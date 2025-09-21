@@ -1079,9 +1079,38 @@ class ArgusPiStation:
         """
         device_name = os.path.basename(device_node)
         mount_point = os.path.join(self.mount_base, device_name)
+        
+        # Check if device is already mounted somewhere
+        try:
+            mount_check = subprocess.run(
+                ["mount"], 
+                capture_output=True, 
+                text=True, 
+                check=True
+            )
+            mount_lines = mount_check.stdout.strip().split('\n')
+            
+            for line in mount_lines:
+                if device_node in line:
+                    # Device is already mounted, extract the mount point
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[0] == device_node:
+                        existing_mount = parts[2]
+                        self.log(f"Device {device_node} already mounted at {existing_mount}. Using existing mount.")
+                        # Track this mount for cleanup (but don't unmount it ourselves)
+                        with self.mount_lock:
+                            self.active_mounts.add((device_node, existing_mount))
+                        return existing_mount
+        except subprocess.CalledProcessError:
+            # If mount command fails, proceed with normal mounting
+            pass
+        
+        # Device not mounted, proceed with our own mounting
         os.makedirs(mount_point, exist_ok=True)
+        
         # Put device into read-only state (ignore errors)
         subprocess.run(["/sbin/hdparm", "-r1", device_node], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
         # Try to mount with safe options
         try:
             subprocess.run(
@@ -1109,18 +1138,27 @@ class ArgusPiStation:
     def unmount_device(self, device_node: str, mount_point: str) -> None:
         """Unmount and clean up a device."""
         try:
-            subprocess.run(["/bin/umount", mount_point], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Check if this is our mount point (under /mnt/arguspi) or a system mount
+            is_our_mount = mount_point.startswith(self.mount_base)
+            
+            if is_our_mount:
+                # This is our mount, safe to unmount
+                subprocess.run(["/bin/umount", mount_point], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # Remove mount directory if empty
+                try:
+                    os.rmdir(mount_point)
+                except OSError:
+                    pass
+                self.log(f"Unmounted ArgusPi mount: {mount_point}")
+            else:
+                # This was a pre-existing system mount, leave it alone
+                self.log(f"Leaving system mount intact: {mount_point}")
         finally:
-            # Reset read-only flag so the user can use the drive again
+            # Always reset read-only flag so the user can use the drive again
             subprocess.run(["/sbin/hdparm", "-r0", device_node], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             # Remove from active mounts tracking
             with self.mount_lock:
                 self.active_mounts.discard((device_node, mount_point))
-            # Remove mount directory if empty
-            try:
-                os.rmdir(mount_point)
-            except OSError:
-                pass
 
     def cleanup_all_mounts(self) -> None:
         """Clean up all active mounts on shutdown."""

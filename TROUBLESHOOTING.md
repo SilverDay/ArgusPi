@@ -66,6 +66,47 @@ sudo systemctl restart systemd-udevd
 lsblk
 ```
 
+### "Device Already Mounted" Error
+
+**Symptoms:** Error popup saying "/dev/sda1 is already mounted at /mnt/arguspi/sda1" when inserting USB
+
+**Root Cause:** The desktop environment auto-mounts USB devices before ArgusPi can mount them, causing a conflict.
+
+**Solutions:**
+
+```bash
+# Method 1: Restart ArgusPi service to apply the latest mounting logic
+sudo systemctl restart arguspi
+
+# Method 2: Check what's currently mounted
+mount | grep /dev/sd
+# or
+lsblk
+
+# Method 3: Manually unmount conflicting mounts if needed
+sudo umount /dev/sda1  # Replace with your device
+
+# Method 4: Disable desktop auto-mounting (optional, for dedicated kiosk)
+# Create a rule to prevent desktop auto-mounting
+sudo tee /etc/udev/rules.d/99-no-automount.rules << EOF
+# Disable automounting for all block devices
+SUBSYSTEM=="block", ENV{UDISKS_IGNORE}="1"
+EOF
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+
+# Note: This will disable ALL USB auto-mounting, including for user access
+```
+
+**Technical Details:**
+
+The updated ArgusPi code now:
+1. Checks if a device is already mounted before attempting to mount it
+2. Uses existing mounts when available instead of creating conflicts
+3. Only unmounts devices that ArgusPi mounted itself
+4. Leaves system/desktop mounts intact after scanning
+
 ### VirusTotal API Errors
 
 **Symptoms:** API key rejection or quota errors
