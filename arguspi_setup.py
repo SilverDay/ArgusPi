@@ -15,7 +15,7 @@ ArgusPi USB malware checking station. It performs the following tasks:
 4. Copies the scanning script (``arguspi_scan_station.py``) to
    ``/usr/local/bin`` and sets the executable bit.
 5. Creates a simple udev rule to mark USB storage devices as
-   read‑only upon insertion and clear the flag on removal using
+   read-only upon insertion and clear the flag on removal using
    ``hdparm -r1/-r0``.
 6. Defines a systemd unit file that runs the ArgusPi scanning service as a
    background daemon on boot. The service is enabled and started.
@@ -31,9 +31,10 @@ import shutil
 import subprocess
 import stat
 import socket
-import json
 import logging
 import logging.handlers
+import re
+import time
 from getpass import getpass
 from urllib.parse import urlparse
 import ipaddress
@@ -117,10 +118,382 @@ def validate_webhook_url(url: str) -> bool:
         return False
 
 
+def scan_wifi_networks() -> list:
+    """Scan for available WiFi networks using iwlist."""
+    try:
+        # Try different wireless interfaces
+        interfaces = ['wlan0', 'wlan1', 'wlp2s0']
+        networks = []
+        
+        for interface in interfaces:
+            try:
+                # Check if interface exists and is up
+                result = subprocess.run(['iwconfig', interface], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode != 0:
+                    continue
+                    
+                # Scan for networks
+                scan_result = subprocess.run(['iwlist', interface, 'scan'], 
+                                           capture_output=True, text=True, timeout=30)
+                if scan_result.returncode != 0:
+                    continue
+                
+                # Parse scan results
+                current_network = {}
+                for line in scan_result.stdout.split('\n'):
+                    line = line.strip()
+                    
+                    if 'Cell' in line and 'Address:' in line:
+                        # Save previous network if it exists
+                        if current_network and current_network.get('ESSID'):
+                            networks.append(current_network)
+                        current_network = {}
+                    elif 'ESSID:' in line:
+                        essid_match = re.search(r'ESSID:"([^"]*)"', line)
+                        if essid_match:
+                            current_network['ESSID'] = essid_match.group(1)
+                    elif 'Encryption key:' in line:
+                        if 'off' in line:
+                            current_network['Security'] = 'Open'
+                        else:
+                            current_network['Security'] = 'Secured'
+                    elif 'IE: IEEE 802.11i/WPA2' in line:
+                        current_network['Security'] = 'WPA2'
+                    elif 'IE: WPA Version' in line:
+                        current_network['Security'] = 'WPA'
+                    elif 'Quality=' in line:
+                        quality_match = re.search(r'Quality=(\d+)/(\d+)', line)
+                        if quality_match:
+                            quality = int(quality_match.group(1))
+                            max_quality = int(quality_match.group(2))
+                            signal_percent = int((quality / max_quality) * 100)
+                            current_network['Signal'] = f"{signal_percent}%"
+                
+                # Add last network
+                if current_network and current_network.get('ESSID'):
+                    networks.append(current_network)
+                
+                # If we found networks, break (don't check other interfaces)
+                if networks:
+                    break
+                    
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                continue
+        
+        # Remove duplicates and sort by signal strength
+        unique_networks = {}
+        for network in networks:
+            essid = network.get('ESSID', '')
+            if essid and essid not in unique_networks:
+                unique_networks[essid] = network
+        
+        return list(unique_networks.values())
+        
+    except Exception as e:
+        print(f"Warning: Could not scan WiFi networks: {e}")
+        return []
+
+
+def get_current_wifi_config() -> dict:
+    """Get current WiFi configuration from wpa_supplicant.conf."""
+    try:
+        with open('/etc/wpa_supplicant/wpa_supplicant.conf', 'r') as f:
+            content = f.read()
+            
+        # Find network blocks
+        networks = []
+        current_network = {}
+        in_network = False
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            if line.startswith('network={'):
+                in_network = True
+                current_network = {}
+            elif line == '}' and in_network:
+                if current_network.get('ssid'):
+                    networks.append(current_network)
+                current_network = {}
+                in_network = False
+            elif in_network and '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip().strip('"')
+                current_network[key] = value
+        
+        return {'networks': networks}
+        
+    except FileNotFoundError:
+        return {'networks': []}
+    except Exception as e:
+        print(f"Warning: Could not read WiFi configuration: {e}")
+        return {'networks': []}
+
+
+def configure_wifi(ssid: str, password: str = "", security: str = "WPA2", hidden: bool = False) -> bool:
+    """Configure WiFi by updating wpa_supplicant.conf."""
+    try:
+        # Read existing configuration
+        config_path = '/etc/wpa_supplicant/wpa_supplicant.conf'
+        
+        # Create backup
+        if os.path.exists(config_path):
+            shutil.copy2(config_path, f"{config_path}.backup")
+        
+        # Read existing content
+        existing_content = ""
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                existing_content = f.read()
+        
+        # Check if this network already exists
+        if f'ssid="{ssid}"' in existing_content:
+            # Remove existing entry for this SSID
+            lines = existing_content.split('\n')
+            new_lines = []
+            skip_network = False
+            
+            for line in lines:
+                if line.strip().startswith('network={'):
+                    # Start of a network block
+                    network_block = [line]
+                    skip_network = False
+                elif line.strip() == '}' and len([l for l in new_lines if l.strip().startswith('network={')]) > len([l for l in new_lines if l.strip() == '}']):
+                    # End of current network block
+                    network_block.append(line)
+                    if not skip_network:
+                        new_lines.extend(network_block)
+                    network_block = []
+                elif len([l for l in new_lines if l.strip().startswith('network={')]) > len([l for l in new_lines if l.strip() == '}']):
+                    # Inside a network block
+                    if f'ssid="{ssid}"' in line:
+                        skip_network = True
+                    network_block.append(line)
+                else:
+                    # Outside network blocks
+                    new_lines.append(line)
+            
+            existing_content = '\n'.join(new_lines)
+        
+        # Prepare new network configuration
+        network_config = f"""
+network={{
+    ssid="{ssid}"
+"""
+        
+        if security.upper() == "OPEN" or not password:
+            network_config += "    key_mgmt=NONE\n"
+        else:
+            network_config += f"    psk=\"{password}\"\n"
+            if security.upper() == "WPA":
+                network_config += "    proto=WPA\n"
+            else:  # WPA2 or WPA3
+                network_config += "    proto=RSN\n"
+        
+        if hidden:
+            network_config += "    scan_ssid=1\n"
+        
+        network_config += "}\n"
+        
+        # Write new configuration
+        with open(config_path, 'w') as f:
+            # Start with country and basic config if file is empty
+            if not existing_content.strip():
+                f.write("country=US\n")
+                f.write("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n")
+                f.write("update_config=1\n")
+            else:
+                f.write(existing_content.rstrip() + '\n')
+            
+            f.write(network_config)
+        
+        # Set correct permissions
+        os.chmod(config_path, 0o600)
+        
+        # Restart WiFi services
+        subprocess.run(['wpa_cli', '-i', 'wlan0', 'reconfigure'], 
+                      capture_output=True, check=False)
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error configuring WiFi: {e}")
+        # Restore backup if it exists
+        backup_path = f"{config_path}.backup"
+        if os.path.exists(backup_path):
+            shutil.copy2(backup_path, config_path)
+        return False
+
+
+def test_wifi_connectivity(timeout: int = 30) -> bool:
+    """Test internet connectivity after WiFi configuration."""
+    try:
+        print("Testing WiFi connectivity...")
+        
+        # Wait for WiFi to connect
+        for i in range(timeout):
+            try:
+                # Check if we have an IP address
+                result = subprocess.run(['hostname', '-I'], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0 and result.stdout.strip():
+                    # Test internet connectivity
+                    test_result = subprocess.run(['ping', '-c', '3', '8.8.8.8'], 
+                                                capture_output=True, timeout=15)
+                    if test_result.returncode == 0:
+                        print("✓ WiFi connectivity test successful")
+                        return True
+                
+                time.sleep(1)
+                if i % 5 == 0:
+                    print(f"  Waiting for connection... ({i}/{timeout}s)")
+                    
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                continue
+        
+        print("✗ WiFi connectivity test failed")
+        return False
+        
+    except Exception as e:
+        print(f"Error testing WiFi connectivity: {e}")
+        return False
+
+
+def prompt_wifi_configuration() -> bool:
+    """Interactive WiFi configuration with network scanning and validation."""
+    print("\n--- WiFi Configuration ---")
+    print("Configure wireless network connectivity for your ArgusPi station")
+    
+    # Check if user wants to configure WiFi
+    configure_wifi_input = input("Configure WiFi network (Y/n)? ").strip().lower()
+    if configure_wifi_input in ("n", "no"):
+        print("Skipping WiFi configuration")
+        return True
+    
+    # Ensure wireless tools are available
+    if not ensure_wifi_tools():
+        print("Warning: Wireless tools not available. Using manual configuration only.")
+        available_networks = []
+    else:
+        # Scan for available networks
+        print("\nScanning for available networks...")
+        available_networks = scan_wifi_networks()
+    
+    # Show current configuration if any
+    current_config = get_current_wifi_config()
+    if current_config['networks']:
+        print("\nCurrent WiFi networks configured:")
+        for i, network in enumerate(current_config['networks'], 1):
+            ssid = network.get('ssid', 'Unknown')
+            print(f"  {i}. {ssid}")
+    
+    if available_networks:
+        print("\nAvailable networks:")
+        for i, network in enumerate(available_networks[:10], 1):  # Show top 10
+            ssid = network.get('ESSID', 'Unknown')
+            security = network.get('Security', 'Unknown')
+            signal = network.get('Signal', 'Unknown')
+            print(f"  {i:2d}. {ssid:<25} {security:<8} {signal}")
+        print(f"  {len(available_networks)+1:2d}. Enter network manually")
+        print(f"   0. Skip WiFi configuration")
+    else:
+        print("No networks found. You can enter network details manually.")
+    
+    # Get user selection
+    while True:
+        try:
+            if available_networks:
+                choice = input(f"\nSelect network (0-{len(available_networks)+1}): ").strip()
+                choice_num = int(choice)
+                
+                if choice_num == 0:
+                    print("Skipping WiFi configuration")
+                    return True
+                elif 1 <= choice_num <= len(available_networks):
+                    # Use scanned network
+                    selected_network = available_networks[choice_num - 1]
+                    ssid = selected_network['ESSID']
+                    security = selected_network.get('Security', 'WPA2')
+                    break
+                elif choice_num == len(available_networks) + 1:
+                    # Manual entry
+                    ssid = input("Enter network name (SSID): ").strip()
+                    if not ssid:
+                        print("Network name cannot be empty")
+                        continue
+                    print("Security options:")
+                    print("1. WPA2/WPA3 (most common)")
+                    print("2. WPA (legacy)")
+                    print("3. Open (no password)")
+                    sec_choice = input("Select security type (1-3): ").strip()
+                    if sec_choice == "2":
+                        security = "WPA"
+                    elif sec_choice == "3":
+                        security = "Open"
+                    else:
+                        security = "WPA2"
+                    break
+                else:
+                    print("Invalid selection")
+                    continue
+            else:
+                # No networks found, manual entry only
+                ssid = input("Enter network name (SSID): ").strip()
+                if not ssid:
+                    print("Network name cannot be empty")
+                    continue
+                security = "WPA2"  # Default assumption
+                break
+                
+        except ValueError:
+            print("Please enter a number")
+            continue
+    
+    # Get password if needed
+    password = ""
+    if security.upper() != "OPEN":
+        while True:
+            password = getpass(f"Enter password for '{ssid}' (input hidden): ").strip()
+            if len(password) >= 8:
+                break
+            elif len(password) == 0:
+                use_no_password = input("Use open network (no password) (y/N)? ").strip().lower()
+                if use_no_password in ("y", "yes"):
+                    security = "Open"
+                    break
+                else:
+                    print("Password must be at least 8 characters")
+            else:
+                print("Password must be at least 8 characters")
+    
+    # Ask about hidden network
+    hidden = False
+    if available_networks and ssid not in [n.get('ESSID', '') for n in available_networks]:
+        hidden_input = input("Is this a hidden network (y/N)? ").strip().lower()
+        hidden = hidden_input in ("y", "yes")
+    
+    # Configure the network
+    print(f"\nConfiguring WiFi network '{ssid}'...")
+    if configure_wifi(ssid, password, security, hidden):
+        print("✓ WiFi configuration updated")
+        
+        # Test connectivity
+        if test_wifi_connectivity():
+            return True
+        else:
+            print("WiFi configured but connectivity test failed.")
+            print("You may need to check your credentials or network settings.")
+            return False
+    else:
+        print("✗ Failed to configure WiFi")
+        return False
+
+
 def validate_virustotal_api_key(api_key: str) -> bool:
     """Test if the VirusTotal API key is valid by making a test request."""
     try:
-        import requests
+        import requests  # type: ignore
         headers = {"x-apikey": api_key}
         # Test with a known hash (empty file SHA-256)
         test_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -201,7 +574,7 @@ def test_siem_integration(config: dict) -> bool:
                 return False
             
             # Test HTTP webhook
-            import requests
+            import requests  # type: ignore
             test_event = {
                 "timestamp": "2025-09-20T00:00:00Z",
                 "source": "arguspi",
@@ -229,6 +602,22 @@ def test_siem_integration(config: dict) -> bool:
         return False
     
     return True
+
+
+def ensure_wifi_tools() -> bool:
+    """Ensure wireless tools are installed for WiFi configuration."""
+    try:
+        # Check if iwconfig and iwlist are available
+        subprocess.run(['iwconfig', '--version'], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        try:
+            print("Installing wireless tools...")
+            subprocess.run(['apt-get', 'install', '-y', 'wireless-tools'], check=True)
+            return True
+        except subprocess.CalledProcessError:
+            print("Warning: Could not install wireless tools. WiFi configuration may not work.")
+            return False
 
 
 def require_root() -> None:
@@ -261,6 +650,15 @@ def prompt_configuration() -> dict:
     
     print(f"✓ Station name set to: {station_name}")
     print()
+    
+    # WiFi Configuration
+    wifi_configured = prompt_wifi_configuration()
+    if not wifi_configured:
+        print("Warning: WiFi configuration failed. You may need to configure networking manually.")
+        retry = input("Continue with setup anyway (Y/n)? ").strip().lower()
+        if retry == "n" or retry == "no":
+            print("Setup cancelled. Please configure WiFi and try again.")
+            sys.exit(1)
     
     # Prompt for API key (now optional for offline/air-gapped environments)
     print("VirusTotal Integration (optional)")
@@ -296,7 +694,7 @@ def prompt_configuration() -> dict:
                     print("✗ API key is invalid or expired. Please try again.")
                     continue
             else:
-                print("API key cannot be empty (or use offline mode above). Please re‑enter.")
+                print("API key cannot be empty (or use offline mode above). Please re-enter.")
     
     # Validate mount base path
     while True:
@@ -440,6 +838,28 @@ def prompt_configuration() -> dict:
     ).strip().lower()
     # Default is yes if the user presses enter
     use_gui = use_gui_input not in ("n", "no")
+    
+    # Screensaver configuration for GUI
+    screensaver_timeout = 300  # Default 5 minutes
+    if use_gui:
+        print("\n--- Screensaver Configuration ---")
+        print("Screensaver helps protect the display during idle periods")
+        screensaver_input = input("Enable screensaver (Y/n)? ").strip().lower()
+        use_screensaver = screensaver_input not in ("n", "no")
+        
+        if use_screensaver:
+            while True:
+                timeout_str = input("Screensaver timeout in minutes [5]: ").strip()
+                try:
+                    screensaver_timeout = int(timeout_str) if timeout_str else 5
+                    if screensaver_timeout < 1:
+                        print("Timeout must be at least 1 minute.")
+                        continue
+                    break
+                except ValueError:
+                    print("Invalid timeout; please enter a number.")
+    else:
+        use_screensaver = False
     return {
         "station_name": station_name,
         "api_key": api_key,
@@ -450,6 +870,8 @@ def prompt_configuration() -> dict:
         "use_led": use_led,
         "led_pins": led_pins,
         "use_gui": use_gui,
+        "use_screensaver": use_screensaver if use_gui else False,
+        "screensaver_timeout": screensaver_timeout * 60,  # Convert to seconds
         "siem_enabled": use_siem,
         "siem_type": siem_type,
         "siem_server": siem_server,
@@ -487,8 +909,8 @@ def install_packages(config: dict) -> None:
         print(f"⚠ Warning: Failed to update package list: {e}")
     
     try:
-        subprocess.run(["apt-get", "install", "-y", "hdparm", "python3-pip"], check=True)
-        print("✓ Installed hdparm and python3-pip")
+        subprocess.run(["apt-get", "install", "-y", "hdparm", "python3-pip", "wireless-tools"], check=True)
+        print("✓ Installed hdparm, python3-pip, and wireless-tools")
     except subprocess.CalledProcessError as e:
         print(f"✗ Error: Failed to install basic packages: {e}")
         sys.exit(1)
@@ -546,10 +968,10 @@ def deploy_scanning_script(config: dict) -> None:
 
 
 def create_udev_rule() -> None:
-    """Create udev rules to set USB drives read‑only on insertion and remove on removal."""
+    """Create udev rules to set USB drives read-only on insertion and remove on removal."""
     rules_path = "/etc/udev/rules.d/90-arguspi-readonly.rules"
     rule_content = """
-# ArgusPi: Set USB mass‑storage devices read‑only on insertion and revert on removal
+# ArgusPi: Set USB mass-storage devices read-only on insertion and revert on removal
 ACTION=="add", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partition", RUN+="/sbin/hdparm -r1 /dev/%k"
 ACTION=="remove", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partition", RUN+="/sbin/hdparm -r0 /dev/%k"
 """

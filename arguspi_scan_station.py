@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
 """
-ArgusPi USB Scan Station – Automated USB malware scanning service for Raspberry Pi
+ArgusPi USB Scan Station - Automated USB malware scanning service for Raspberry Pi
 
 ArgusPi is a comprehensive USB security scanning solution that monitors for new 
-USB mass‑storage devices on a Raspberry Pi, mounts them read‑only with secure 
-options, computes cryptographic hashes (SHA‑256) for every file on the device 
+USB mass-storage devices on a Raspberry Pi, mounts them read-only with secure 
+options, computes cryptographic hashes (SHA-256) for every file on the device 
 and, optionally, runs a local ClamAV scan before submitting suspicious hashes 
 to VirusTotal for reputation analysis. After scanning, the device is automatically
-unmounted and its read‑only status is cleared. Scan results are displayed on 
+unmounted and its read-only status is cleared. Scan results are displayed on 
 the console and logged locally. ArgusPi is designed to run as a daemon via a 
 systemd service so that a USB checking station can be deployed with minimal 
 user interaction.
 
 Features
 --------
-* Automatic detection of USB mass‑storage insert/remove events using
+* Automatic detection of USB mass-storage insert/remove events using
   ``pyudev``.  Only partitions with a valid file system and coming from
   a USB bus are handled.
-* Devices are put into a hardware read‑only state using ``hdparm``
+* Devices are put into a hardware read-only state using ``hdparm``
   immediately when they are detected.  This minimises the risk of
   malware infection from autorun or other unwanted writes before the
   device is scanned.
-* Filesystems are mounted read‑only with the ``ro``, ``noexec``,
+* Filesystems are mounted read-only with the ``ro``, ``noexec``,
   ``nosuid`` and ``nodev`` options to prevent execution of binaries
   from the USB stick and suppress privilege escalations.
 * File hashes are calculated in a streaming fashion to handle large
-  files efficiently.  SHA‑256 is the default algorithm because it 
+  files efficiently.  SHA-256 is the default algorithm because it 
   provides a strong balance between performance and resistance to collisions.
 * Queries the VirusTotal v3 API for each unique hash and summarises
   detection counts from the analysis statistics.  Unknown files are
@@ -65,9 +65,9 @@ Prerequisites
 Install the following packages before running ArgusPi:
 
 * Python3 and pip (usually already present on Raspberry Pi OS)
-* ``pyudev`` – for monitoring USB events
-* ``requests`` – for interacting with the VirusTotal API
-* ``hdparm`` – to control device read‑only state
+* ``pyudev`` - for monitoring USB events
+* ``requests`` - for interacting with the VirusTotal API
+* ``hdparm`` - to control device read-only state
 
 These can be installed via apt and pip::
 
@@ -104,9 +104,11 @@ import requests  # type: ignore
 import tkinter as tk
 from tkinter import ttk
 from queue import Queue, Empty
+import random
+import math
 
 try:
-    from gpiozero import RGBLED
+    from gpiozero import RGBLED  # type: ignore
 except ImportError:
     RGBLED = None  # type: ignore
 
@@ -178,7 +180,7 @@ def validate_webhook_url(url: str) -> bool:
 
 class ArgusPiGUI:
     """
-    ArgusPi full‑screen GUI for the USB scanning station.
+    ArgusPi full-screen GUI for the USB scanning station.
 
     Displays the current scanning status with a coloured panel and
     descriptive text, and shows a log window of recent events.
@@ -195,6 +197,18 @@ class ArgusPiGUI:
             # Fallback for environments that do not support fullscreen
             self.root.geometry("800x480")
         self.root.configure(bg="black")
+        
+        # Screensaver configuration
+        self.screensaver_timeout = 300000  # 5 minutes in milliseconds
+        self.screensaver_active = False
+        self.last_activity = 0
+        self.screensaver_elements = []
+        
+        # Bind mouse and key events to detect activity
+        self.root.bind('<Motion>', self._on_activity)
+        self.root.bind('<Button>', self._on_activity)
+        self.root.bind('<Key>', self._on_activity)
+        self.root.focus_set()  # Enable key events
         
         # Create title banner
         self.title_frame = tk.Frame(self.root, bg="black")
@@ -261,7 +275,7 @@ class ArgusPiGUI:
         self._color_map = {
             "waiting": ("#0066cc", "Waiting for USB device…"),
             "scanning": ("#ffcc00", "Scanning USB device…"),
-            "clean": ("#00cc00", "✓ Scan complete – No threats detected"),
+            "clean": ("#00cc00", "✓ Scan complete - No threats detected"),
             "infected": ("#cc0000", "⚠ THREATS DETECTED!"),
             "error": ("#cc0000", "✗ Error during scan"),
         }
@@ -284,7 +298,7 @@ class ArgusPiGUI:
         def update() -> None:
             self.log_text.configure(state="normal")
             self.log_text.insert("end", line + "\n")
-            # Auto‑scroll to the end
+            # Auto-scroll to the end
             self.log_text.see("end")
             self.log_text.configure(state="disabled")
         try:
@@ -292,12 +306,221 @@ class ArgusPiGUI:
         except Exception:
             pass
 
+    def _on_activity(self, event=None) -> None:
+        """Handle user activity events to reset screensaver timer."""
+        import time
+        self.last_activity = time.time()
+        if self.screensaver_active:
+            self._deactivate_screensaver()
+
+    def _check_screensaver(self) -> None:
+        """Check if screensaver should be activated."""
+        import time
+        current_time = time.time()
+        
+        if not self.screensaver_active and self.last_activity > 0:
+            idle_time = (current_time - self.last_activity) * 1000  # Convert to milliseconds
+            if idle_time >= self.screensaver_timeout:
+                self._activate_screensaver()
+        
+        # Schedule next check
+        self.root.after(10000, self._check_screensaver)  # Check every 10 seconds
+
+    def _activate_screensaver(self) -> None:
+        """Activate the screensaver display."""
+        if self.screensaver_active:
+            return
+            
+        self.screensaver_active = True
+        
+        # Hide main content
+        for widget in self.root.winfo_children():
+            widget.place_forget()
+            widget.pack_forget()
+        
+        # Create screensaver canvas
+        self.screensaver_canvas = tk.Canvas(
+            self.root, 
+            width=self.root.winfo_screenwidth(),
+            height=self.root.winfo_screenheight(),
+            bg="black",
+            highlightthickness=0
+        )
+        self.screensaver_canvas.pack(fill="both", expand=True)
+        
+        # Create floating ArgusPi logo and clock
+        self._create_screensaver_elements()
+        self._animate_screensaver()
+
+    def _deactivate_screensaver(self) -> None:
+        """Deactivate the screensaver and restore main interface."""
+        if not self.screensaver_active:
+            return
+            
+        self.screensaver_active = False
+        
+        # Remove screensaver elements
+        if hasattr(self, 'screensaver_canvas'):
+            self.screensaver_canvas.destroy()
+        
+        # Restore main interface
+        self._restore_main_interface()
+
+    def _create_screensaver_elements(self) -> None:
+        """Create screensaver display elements."""
+        canvas = self.screensaver_canvas
+        
+        # Calculate initial positions
+        screen_width = canvas.winfo_reqwidth()
+        screen_height = canvas.winfo_reqheight()
+        
+        # Create floating ArgusPi logo
+        self.logo_x = screen_width // 2
+        self.logo_y = screen_height // 2 - 50
+        self.logo_dx = random.choice([-2, -1, 1, 2])
+        self.logo_dy = random.choice([-2, -1, 1, 2])
+        
+        self.screensaver_logo = canvas.create_text(
+            self.logo_x, self.logo_y,
+            text="ArgusPi",
+            font=("Helvetica", 48, "bold"),
+            fill="#00ff00",
+            anchor="center"
+        )
+        
+        # Create subtitle
+        self.subtitle_text = canvas.create_text(
+            self.logo_x, self.logo_y + 60,
+            text="USB Security Scanner",
+            font=("Helvetica", 16),
+            fill="#888888",
+            anchor="center"
+        )
+        
+        # Create clock
+        self.clock_x = screen_width // 2
+        self.clock_y = screen_height - 100
+        self.clock_text = canvas.create_text(
+            self.clock_x, self.clock_y,
+            text="",
+            font=("Courier", 24, "bold"),
+            fill="#0066cc",
+            anchor="center"
+        )
+
+    def _animate_screensaver(self) -> None:
+        """Animate screensaver elements."""
+        if not self.screensaver_active:
+            return
+            
+        canvas = self.screensaver_canvas
+        
+        try:
+            # Get canvas dimensions
+            canvas_width = canvas.winfo_width()
+            canvas_height = canvas.winfo_height()
+            
+            # Update logo position
+            self.logo_x += self.logo_dx
+            self.logo_y += self.logo_dy
+            
+            # Bounce off edges
+            logo_bounds = canvas.bbox(self.screensaver_logo)
+            if logo_bounds:
+                if self.logo_x <= 50 or self.logo_x >= canvas_width - 50:
+                    self.logo_dx = -self.logo_dx
+                if self.logo_y <= 50 or self.logo_y >= canvas_height - 150:
+                    self.logo_dy = -self.logo_dy
+            
+            # Update logo and subtitle positions
+            canvas.coords(self.screensaver_logo, self.logo_x, self.logo_y)
+            canvas.coords(self.subtitle_text, self.logo_x, self.logo_y + 60)
+            
+            # Update clock
+            current_time = datetime.now().strftime("%H:%M:%S")
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            clock_display = f"{current_date}\n{current_time}"
+            canvas.itemconfig(self.clock_text, text=clock_display)
+            
+            # Schedule next animation frame
+            self.root.after(50, self._animate_screensaver)  # ~20 FPS
+            
+        except Exception:
+            # Handle any animation errors gracefully
+            pass
+
+    def _restore_main_interface(self) -> None:
+        """Restore the main ArgusPi interface after screensaver."""
+        # Recreate main interface elements
+        # Title banner
+        self.title_frame = tk.Frame(self.root, bg="black")
+        self.title_frame.pack(pady=10)
+        
+        # ArgusPi logo/title
+        self.title_label = tk.Label(
+            self.title_frame,
+            text="ArgusPi",
+            font=("Helvetica", 36, "bold"),
+            fg="#00ff00",  # Bright green
+            bg="black",
+        )
+        self.title_label.pack()
+        
+        # Subtitle
+        self.subtitle_label = tk.Label(
+            self.title_frame,
+            text="USB Security Scanner",
+            font=("Helvetica", 16),
+            fg="white",
+            bg="black",
+        )
+        self.subtitle_label.pack()
+        
+        # Status panel
+        self.status_frame = tk.Frame(self.root, width=400, height=120, bg="blue")
+        self.status_frame.pack(pady=20)
+        
+        # Status label
+        self.status_label = tk.Label(
+            self.root,
+            textvariable=self.status_var,
+            font=("Helvetica", 20, "bold"),
+            fg="white",
+            bg="black",
+        )
+        self.status_label.pack(pady=10)
+        
+        # Log text area
+        self.log_text = tk.Text(
+            self.root,
+            height=10,
+            width=90,
+            bg="black",
+            fg="white",
+            state="disabled",
+            wrap="word",
+            borderwidth=0,
+            highlightthickness=0,
+            font=("Courier", 9)
+        )
+        self.log_text.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # Scrollbar for the log text
+        self.scrollbar = tk.Scrollbar(self.log_text, command=self.log_text.yview)
+        self.log_text.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side="right", fill="y")
+
     def run(self) -> None:
         """Enter the Tk main loop."""
+        import time
+        self.last_activity = time.time()
+        # Start screensaver checker
+        self.root.after(10000, self._check_screensaver)
+        
         try:
             self.root.mainloop()
         except KeyboardInterrupt:
-            # Gracefully exit on Ctrl‑C
+            # Gracefully exit on Ctrl-C
             pass
 
 
@@ -356,7 +579,10 @@ class ArgusPiStation:
         # Initialise GUI if enabled
         if self.use_gui:
             try:
-                self.gui = ArgusPiGUI()
+                self.gui = ArgusPiGUI(
+                    use_screensaver=self.use_screensaver,
+                    screensaver_timeout=self.screensaver_timeout
+                )
             except Exception as e:
                 self.log(f"Failed to initialise ArgusPi GUI: {e}. Running headless.", "WARN")
                 self.use_gui = False
@@ -391,6 +617,9 @@ class ArgusPiStation:
             self.led_pins = {"red": int(pins["red"]), "green": int(pins["green"]), "blue": int(pins["blue"])}
         # GUI configuration
         self.use_gui = bool(data.get("use_gui", False))
+        # Screensaver configuration
+        self.use_screensaver = bool(data.get("use_screensaver", True))
+        self.screensaver_timeout = int(data.get("screensaver_timeout", 300))  # Default 5 minutes in seconds
         # Station identification
         self.station_name = data.get("station_name", "arguspi-station")
         # SIEM configuration
@@ -605,7 +834,7 @@ class ArgusPiStation:
 
     @staticmethod
     def compute_hash(file_path: str) -> str:
-        """Compute SHA‑256 hash of a file in a memory‑efficient way.
+        """Compute SHA-256 hash of a file in a memory-efficient way.
         
         Raises:
             FileNotFoundError: If file doesn't exist (device removed)
@@ -828,14 +1057,14 @@ class ArgusPiStation:
         return infected_found  # True if any infected files found, False if clean
 
     def mount_device(self, device_node: str) -> Optional[str]:
-        """Mount the given block device read‑only with secure options.
+        """Mount the given block device read-only with secure options.
 
         Returns the mount path or None if mounting failed.
         """
         device_name = os.path.basename(device_node)
         mount_point = os.path.join(self.mount_base, device_name)
         os.makedirs(mount_point, exist_ok=True)
-        # Put device into read‑only state (ignore errors)
+        # Put device into read-only state (ignore errors)
         subprocess.run(["/sbin/hdparm", "-r1", device_node], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         # Try to mount with safe options
         try:
@@ -857,7 +1086,7 @@ class ArgusPiStation:
             return mount_point
         except subprocess.CalledProcessError as e:
             self.log(f"Failed to mount {device_node}: {e}", "ERROR")
-            # Reset read‑only flag on failure
+            # Reset read-only flag on failure
             subprocess.run(["/sbin/hdparm", "-r0", device_node], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return None
 
@@ -866,7 +1095,7 @@ class ArgusPiStation:
         try:
             subprocess.run(["/bin/umount", mount_point], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         finally:
-            # Reset read‑only flag so the user can use the drive again
+            # Reset read-only flag so the user can use the drive again
             subprocess.run(["/sbin/hdparm", "-r0", device_node], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             # Remove from active mounts tracking
             with self.mount_lock:
