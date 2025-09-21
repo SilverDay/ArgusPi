@@ -2,14 +2,14 @@
 """
 ArgusPi USB Scan Station - Automated USB malware scanning service for Raspberry Pi
 
-ArgusPi is a comprehensive USB security scanning solution that monitors for new 
-USB mass-storage devices on a Raspberry Pi, mounts them read-only with secure 
-options, computes cryptographic hashes (SHA-256) for every file on the device 
-and, optionally, runs a local ClamAV scan before submitting suspicious hashes 
+ArgusPi is a comprehensive USB security scanning solution that monitors for new
+USB mass-storage devices on a Raspberry Pi, mounts them read-only with secure
+options, computes cryptographic hashes (SHA-256) for every file on the device
+and, optionally, runs a local ClamAV scan before submitting suspicious hashes
 to VirusTotal for reputation analysis. After scanning, the device is automatically
-unmounted and its read-only status is cleared. Scan results are displayed on 
-the console and logged locally. ArgusPi is designed to run as a daemon via a 
-systemd service so that a USB checking station can be deployed with minimal 
+unmounted and its read-only status is cleared. Scan results are displayed on
+the console and logged locally. ArgusPi is designed to run as a daemon via a
+systemd service so that a USB checking station can be deployed with minimal
 user interaction.
 
 Features
@@ -25,7 +25,7 @@ Features
   ``nosuid`` and ``nodev`` options to prevent execution of binaries
   from the USB stick and suppress privilege escalations.
 * File hashes are calculated in a streaming fashion to handle large
-  files efficiently.  SHA-256 is the default algorithm because it 
+  files efficiently.  SHA-256 is the default algorithm because it
   provides a strong balance between performance and resistance to collisions.
 * Queries the VirusTotal v3 API for each unique hash and summarises
   detection counts from the analysis statistics.  Unknown files are
@@ -93,6 +93,11 @@ import hashlib
 import socket
 import logging
 import logging.handlers
+import tkinter as tk
+from tkinter import ttk
+from queue import Queue, Empty
+import random
+import math
 from datetime import datetime
 from threading import Thread, Lock
 from typing import Optional, Dict, Any
@@ -101,11 +106,6 @@ import ipaddress
 
 import pyudev  # type: ignore
 import requests  # type: ignore
-import tkinter as tk
-from tkinter import ttk
-from queue import Queue, Empty
-import random
-import math
 
 try:
     from gpiozero import RGBLED  # type: ignore
@@ -116,36 +116,36 @@ except ImportError:
 def validate_webhook_url(url: str) -> bool:
     """
     Validate webhook URL to prevent SSRF attacks.
-    
+
     Args:
         url: The webhook URL to validate
-        
+
     Returns:
         bool: True if URL is safe, False otherwise
     """
     try:
         parsed = urlparse(url)
-        
+
         # Must use HTTPS for security
         if parsed.scheme not in ['https']:
             return False
-        
+
         # Must have a hostname
         if not parsed.hostname:
             return False
-        
+
         # Resolve hostname to IP to check for dangerous/reserved ranges
         try:
             ip_addr = socket.gethostbyname(parsed.hostname)
             ip_obj = ipaddress.ip_address(ip_addr)
-            
+
             # Only block truly dangerous addresses, not corporate networks
             if (ip_obj.is_loopback or       # 127.0.0.1, ::1 (localhost)
                 ip_obj.is_link_local or     # 169.254.x.x (AWS/Azure metadata range)
                 ip_obj.is_multicast or      # Multicast addresses
                 ip_obj.is_unspecified):     # 0.0.0.0, ::
                 return False
-                
+
             # Additional check for specific dangerous IPs
             if str(ip_obj) in ['169.254.169.254', '127.0.0.1', '0.0.0.0', '::1']:
                 return False
@@ -153,23 +153,23 @@ def validate_webhook_url(url: str) -> bool:
             return False
         except Exception:
             return False
-        
+
         # Additional checks for common SSRF bypass attempts and cloud metadata
         hostname_lower = parsed.hostname.lower()
         dangerous_hosts = [
             'localhost',
             'metadata.google.internal',  # Google Cloud metadata
             'instance-data',             # AWS instance metadata
-            'metadata.azure.com',        # Azure metadata  
+            'metadata.azure.com',        # Azure metadata
         ]
-        
+
         # Block specific dangerous hostnames and patterns
         if (any(dangerous == hostname_lower for dangerous in dangerous_hosts) or
             any(dangerous in hostname_lower for dangerous in ['metadata', 'instance-data'])):
             return False
-        
+
         return True
-        
+
     except Exception:
         return False
 
@@ -197,23 +197,23 @@ class ArgusPiGUI:
             # Fallback for environments that do not support fullscreen
             self.root.geometry("800x480")
         self.root.configure(bg="black")
-        
+
         # Screensaver configuration
         self.screensaver_timeout = 300000  # 5 minutes in milliseconds
         self.screensaver_active = False
         self.last_activity = 0
         self.screensaver_elements = []
-        
+
         # Bind mouse and key events to detect activity
         self.root.bind('<Motion>', self._on_activity)
         self.root.bind('<Button>', self._on_activity)
         self.root.bind('<Key>', self._on_activity)
         self.root.focus_set()  # Enable key events
-        
+
         # Create title banner
         self.title_frame = tk.Frame(self.root, bg="black")
         self.title_frame.pack(pady=10)
-        
+
         # ArgusPi logo/title
         self.title_label = tk.Label(
             self.title_frame,
@@ -223,7 +223,7 @@ class ArgusPiGUI:
             bg="black",
         )
         self.title_label.pack()
-        
+
         # Subtitle
         self.subtitle_label = tk.Label(
             self.title_frame,
@@ -233,14 +233,14 @@ class ArgusPiGUI:
             bg="black",
         )
         self.subtitle_label.pack()
-        
+
         # Define status variables
         self.status_var = tk.StringVar(value="Waiting for USB device…")
-        
+
         # Create status panel
         self.status_frame = tk.Frame(self.root, width=400, height=120, bg="blue")
         self.status_frame.pack(pady=20)
-        
+
         # Status label
         self.status_label = tk.Label(
             self.root,
@@ -250,7 +250,7 @@ class ArgusPiGUI:
             bg="black",
         )
         self.status_label.pack(pady=10)
-        
+
         # Log text area
         self.log_text = tk.Text(
             self.root,
@@ -265,7 +265,7 @@ class ArgusPiGUI:
             font=("Courier", 9)
         )
         self.log_text.pack(fill="both", expand=True, padx=20, pady=10)
-        
+
         # Scrollbar for the log text
         self.scrollbar = tk.Scrollbar(self.log_text, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=self.scrollbar.set)
@@ -317,12 +317,12 @@ class ArgusPiGUI:
         """Check if screensaver should be activated."""
         import time
         current_time = time.time()
-        
+
         if not self.screensaver_active and self.last_activity > 0:
             idle_time = (current_time - self.last_activity) * 1000  # Convert to milliseconds
             if idle_time >= self.screensaver_timeout:
                 self._activate_screensaver()
-        
+
         # Schedule next check
         self.root.after(10000, self._check_screensaver)  # Check every 10 seconds
 
@@ -330,24 +330,24 @@ class ArgusPiGUI:
         """Activate the screensaver display."""
         if self.screensaver_active:
             return
-            
+
         self.screensaver_active = True
-        
+
         # Hide main content
         for widget in self.root.winfo_children():
             widget.place_forget()
             widget.pack_forget()
-        
+
         # Create screensaver canvas
         self.screensaver_canvas = tk.Canvas(
-            self.root, 
+            self.root,
             width=self.root.winfo_screenwidth(),
             height=self.root.winfo_screenheight(),
             bg="black",
             highlightthickness=0
         )
         self.screensaver_canvas.pack(fill="both", expand=True)
-        
+
         # Create floating ArgusPi logo and clock
         self._create_screensaver_elements()
         self._animate_screensaver()
@@ -356,30 +356,30 @@ class ArgusPiGUI:
         """Deactivate the screensaver and restore main interface."""
         if not self.screensaver_active:
             return
-            
+
         self.screensaver_active = False
-        
+
         # Remove screensaver elements
         if hasattr(self, 'screensaver_canvas'):
             self.screensaver_canvas.destroy()
-        
+
         # Restore main interface
         self._restore_main_interface()
 
     def _create_screensaver_elements(self) -> None:
         """Create screensaver display elements."""
         canvas = self.screensaver_canvas
-        
+
         # Calculate initial positions
         screen_width = canvas.winfo_reqwidth()
         screen_height = canvas.winfo_reqheight()
-        
+
         # Create floating ArgusPi logo
         self.logo_x = screen_width // 2
         self.logo_y = screen_height // 2 - 50
         self.logo_dx = random.choice([-2, -1, 1, 2])
         self.logo_dy = random.choice([-2, -1, 1, 2])
-        
+
         self.screensaver_logo = canvas.create_text(
             self.logo_x, self.logo_y,
             text="ArgusPi",
@@ -387,7 +387,7 @@ class ArgusPiGUI:
             fill="#00ff00",
             anchor="center"
         )
-        
+
         # Create subtitle
         self.subtitle_text = canvas.create_text(
             self.logo_x, self.logo_y + 60,
@@ -396,7 +396,7 @@ class ArgusPiGUI:
             fill="#888888",
             anchor="center"
         )
-        
+
         # Create clock
         self.clock_x = screen_width // 2
         self.clock_y = screen_height - 100
@@ -412,18 +412,18 @@ class ArgusPiGUI:
         """Animate screensaver elements."""
         if not self.screensaver_active:
             return
-            
+
         canvas = self.screensaver_canvas
-        
+
         try:
             # Get canvas dimensions
             canvas_width = canvas.winfo_width()
             canvas_height = canvas.winfo_height()
-            
+
             # Update logo position
             self.logo_x += self.logo_dx
             self.logo_y += self.logo_dy
-            
+
             # Bounce off edges
             logo_bounds = canvas.bbox(self.screensaver_logo)
             if logo_bounds:
@@ -431,20 +431,20 @@ class ArgusPiGUI:
                     self.logo_dx = -self.logo_dx
                 if self.logo_y <= 50 or self.logo_y >= canvas_height - 150:
                     self.logo_dy = -self.logo_dy
-            
+
             # Update logo and subtitle positions
             canvas.coords(self.screensaver_logo, self.logo_x, self.logo_y)
             canvas.coords(self.subtitle_text, self.logo_x, self.logo_y + 60)
-            
+
             # Update clock
             current_time = datetime.now().strftime("%H:%M:%S")
             current_date = datetime.now().strftime("%Y-%m-%d")
             clock_display = f"{current_date}\n{current_time}"
             canvas.itemconfig(self.clock_text, text=clock_display)
-            
+
             # Schedule next animation frame
             self.root.after(50, self._animate_screensaver)  # ~20 FPS
-            
+
         except Exception:
             # Handle any animation errors gracefully
             pass
@@ -455,7 +455,7 @@ class ArgusPiGUI:
         # Title banner
         self.title_frame = tk.Frame(self.root, bg="black")
         self.title_frame.pack(pady=10)
-        
+
         # ArgusPi logo/title
         self.title_label = tk.Label(
             self.title_frame,
@@ -465,7 +465,7 @@ class ArgusPiGUI:
             bg="black",
         )
         self.title_label.pack()
-        
+
         # Subtitle
         self.subtitle_label = tk.Label(
             self.title_frame,
@@ -475,11 +475,11 @@ class ArgusPiGUI:
             bg="black",
         )
         self.subtitle_label.pack()
-        
+
         # Status panel
         self.status_frame = tk.Frame(self.root, width=400, height=120, bg="blue")
         self.status_frame.pack(pady=20)
-        
+
         # Status label
         self.status_label = tk.Label(
             self.root,
@@ -489,7 +489,7 @@ class ArgusPiGUI:
             bg="black",
         )
         self.status_label.pack(pady=10)
-        
+
         # Log text area
         self.log_text = tk.Text(
             self.root,
@@ -504,7 +504,7 @@ class ArgusPiGUI:
             font=("Courier", 9)
         )
         self.log_text.pack(fill="both", expand=True, padx=20, pady=10)
-        
+
         # Scrollbar for the log text
         self.scrollbar = tk.Scrollbar(self.log_text, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=self.scrollbar.set)
@@ -516,7 +516,7 @@ class ArgusPiGUI:
         self.last_activity = time.time()
         # Start screensaver checker
         self.root.after(10000, self._check_screensaver)
-        
+
         try:
             self.root.mainloop()
         except KeyboardInterrupt:
@@ -596,7 +596,7 @@ class ArgusPiStation:
             )
         with open(self.config_path, "r") as f:
             data = json.load(f)
-        
+
         # VirusTotal API key is now optional for offline/air-gapped environments
         api_key = data.get("api_key", "").strip()
         if api_key:
@@ -604,7 +604,7 @@ class ArgusPiStation:
         else:
             self.api_key = None
             self.log("VirusTotal API key not configured - running in offline mode", "INFO")
-        
+
         self.request_interval = int(data.get("request_interval", 20))
         self.mount_base = data.get("mount_base", "/mnt/arguspi")
         # load optional clamav configuration
@@ -629,14 +629,14 @@ class ArgusPiStation:
             self.siem_server = data.get("siem_server", "")
             self.siem_port = int(data.get("siem_port", 514))
             self.siem_facility = data.get("siem_facility", "local0")
-            
+
             # Validate webhook URL for SSRF protection
             webhook_url = data.get("siem_webhook_url", "")
             if webhook_url and not validate_webhook_url(webhook_url):
                 self.log("WARNING: Invalid or potentially dangerous webhook URL detected. SIEM webhook disabled for security.", "WARN")
                 webhook_url = ""
             self.siem_webhook_url = webhook_url
-            
+
             self.siem_headers = data.get("siem_headers", {})
             self._init_siem_logger()
 
@@ -644,14 +644,14 @@ class ArgusPiStation:
         """Initialize SIEM logger based on configuration."""
         if not self.siem_enabled:
             return
-            
+
         try:
             self.siem_logger = logging.getLogger('arguspi_siem')
             self.siem_logger.setLevel(logging.INFO)
-            
+
             # Remove existing handlers
             self.siem_logger.handlers.clear()
-            
+
             if self.siem_type == "syslog":
                 # Syslog handler for SIEM integration
                 facility_map = {
@@ -665,7 +665,7 @@ class ArgusPiStation:
                     'local7': logging.handlers.SysLogHandler.LOG_LOCAL7,
                 }
                 facility = facility_map.get(self.siem_facility, logging.handlers.SysLogHandler.LOG_LOCAL0)
-                
+
                 if self.siem_server:
                     handler = logging.handlers.SysLogHandler(
                         address=(self.siem_server, self.siem_port),
@@ -673,7 +673,7 @@ class ArgusPiStation:
                     )
                 else:
                     handler = logging.handlers.SysLogHandler(facility=facility)
-                
+
                 # RFC 5424 format for better SIEM parsing
                 formatter = logging.Formatter(
                     'arguspi[%(process)d]: %(name)s %(levelname)s %(message)s'
@@ -681,11 +681,11 @@ class ArgusPiStation:
                 handler.setFormatter(formatter)
                 self.siem_logger.addHandler(handler)
                 self.log(f"SIEM syslog integration enabled: {self.siem_server or 'local'}:{self.siem_port}", "INFO")
-            
+
             elif self.siem_type in ["http", "webhook"]:
                 # HTTP/Webhook integration will be handled in send_siem_event method
                 self.log(f"SIEM {self.siem_type} integration enabled: {self.siem_webhook_url}", "INFO")
-                
+
         except Exception as e:
             self.log(f"Failed to initialize SIEM integration: {e}", "ERROR")
             self.siem_enabled = False
@@ -711,7 +711,7 @@ class ArgusPiStation:
         """Send structured event data to SIEM platform."""
         if not self.siem_enabled:
             return
-            
+
         try:
             # Create standardized SIEM event
             siem_event = {
@@ -723,14 +723,14 @@ class ArgusPiStation:
                 "severity": self._get_event_severity(event_type, event_data),
                 "data": event_data
             }
-            
+
             if self.siem_type == "syslog" and self.siem_logger:
                 # Send as structured syslog message with station name
                 message = f"station_name={self.station_name} event_type={event_type} " + " ".join([
-                    f"{k}={json.dumps(v) if isinstance(v, (dict, list)) else v}" 
+                    f"{k}={json.dumps(v) if isinstance(v, (dict, list)) else v}"
                     for k, v in event_data.items()
                 ])
-                
+
                 severity = siem_event["severity"]
                 if severity == "high":
                     self.siem_logger.error(message)
@@ -738,12 +738,12 @@ class ArgusPiStation:
                     self.siem_logger.warning(message)
                 else:
                     self.siem_logger.info(message)
-                    
+
             elif self.siem_type in ["http", "webhook"] and self.siem_webhook_url:
                 # Send as HTTP POST with JSON payload
                 headers = {"Content-Type": "application/json"}
                 headers.update(self.siem_headers)
-                
+
                 response = requests.post(
                     self.siem_webhook_url,
                     json=siem_event,
@@ -751,10 +751,10 @@ class ArgusPiStation:
                     timeout=10
                 )
                 response.raise_for_status()
-                
+
         except Exception as e:
             self.log(f"Failed to send SIEM event: {e}", "WARN")
-            
+
     def _get_event_severity(self, event_type: str, event_data: Dict[str, Any]) -> str:
         """Determine event severity for SIEM classification."""
         if event_type == "threat_detected":
@@ -787,7 +787,9 @@ class ArgusPiStation:
                 active_high=True,
                 pwm=True,
             )
-            self.log(f"ArgusPi RGB LED initialized on pins R:{self.led_pins['red']} G:{self.led_pins['green']} B:{self.led_pins['blue']}")
+            self.log(f"ArgusPi RGB LED initialized on pins "
+                     f"R:{self.led_pins['red']} G:{self.led_pins['green']} "
+                     f"B:{self.led_pins['blue']}")
         except Exception as e:
             # If LED fails to initialise, disable LED usage
             self.log(f"Failed to initialise ArgusPi RGB LED: {e}. Disabling LED indicator.", "WARN")
@@ -835,7 +837,7 @@ class ArgusPiStation:
     @staticmethod
     def compute_hash(file_path: str) -> str:
         """Compute SHA-256 hash of a file in a memory-efficient way.
-        
+
         Raises:
             FileNotFoundError: If file doesn't exist (device removed)
             PermissionError: If file access denied
@@ -857,12 +859,12 @@ class ArgusPiStation:
         Returns a dictionary with detection counts or None on error.
         Implements simple rate limiting to respect the free API quota by
         sleeping between consecutive requests while holding a lock.
-        
+
         Returns None immediately if no API key is configured (offline mode).
         """
         if self.api_key is None:
             return None
-            
+
         with self.api_lock:
             headers = {"x-apikey": self.api_key}
             url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
@@ -915,25 +917,25 @@ class ArgusPiStation:
         error_occurred = False
         total_files = 0
         infected_files = 0
-        
+
         # Send SIEM event for scan start
         self.send_siem_event("scan_started", {
             "mount_point": mount_point,
             "device": os.path.basename(mount_point),
             "scan_mode": "clamav+virustotal" if self.use_clamav else "virustotal_only" if self.api_key else "local_only"
         })
-        
+
         try:
             for root, dirs, files in os.walk(mount_point):
                 for name in files:
                     file_path = os.path.join(root, name)
                     total_files += 1
-                    
+
                     # Check if mount point still exists (device removed)
                     if not os.path.exists(mount_point):
                         self.log("USB device was removed during scan. Aborting scan.", "WARN")
                         return None
-                    
+
                     # Run a local ClamAV scan first if enabled
                     local_scan_infected = False
                     local_scan_error = False
@@ -954,7 +956,7 @@ class ArgusPiStation:
                         except Exception as e:
                             self.log(f"ClamAV scan failed for {file_path}: {e}", "WARN")
                             local_scan_error = True
-                    
+
                     # Compute hash for logging and possible VT lookup
                     try:
                         file_hash = self.compute_hash(file_path)
@@ -966,7 +968,7 @@ class ArgusPiStation:
                         self.log(f"Failed to compute hash for {file_path}: {e}", "ERROR")
                         error_occurred = True
                         continue
-                    
+
                     # Decide whether to query VirusTotal
                 vt_result = None
                 status = "clean"
@@ -978,7 +980,7 @@ class ArgusPiStation:
                     if local_scan_infected:
                         status = "infected"
                     elif local_scan_error:
-                        status = "error" 
+                        status = "error"
                     else:
                         status = "clean"
                 else:
@@ -1031,14 +1033,14 @@ class ArgusPiStation:
                 self.log(
                     f"{status.upper()} | {file_hash} | {name} | details: {details}"
                 )
-        
+
         except (OSError, FileNotFoundError, PermissionError) as e:
             self.log(f"USB device access failed during scan (device likely removed): {e}", "WARN")
             return None
         except Exception as e:
             self.log(f"Unexpected error during filesystem scan: {e}", "ERROR")
             error_occurred = True
-        
+
         # Send SIEM event for scan completion
         scan_result = "error" if error_occurred else "infected" if infected_found else "clean"
         self.send_siem_event("scan_completed", {
@@ -1050,7 +1052,7 @@ class ArgusPiStation:
             "errors": 1 if error_occurred else 0,
             "scan_mode": "clamav+virustotal" if self.use_clamav else "virustotal_only" if self.api_key else "local_only"
         })
-        
+
         # Return status based on what was found during scanning
         if error_occurred:
             return None  # Indicates an error occurred
@@ -1110,7 +1112,7 @@ class ArgusPiStation:
         """Clean up all active mounts on shutdown."""
         with self.mount_lock:
             mounts_to_cleanup = list(self.active_mounts)
-        
+
         for device_node, mount_point in mounts_to_cleanup:
             self.log(f"Cleaning up mount: {mount_point}", "INFO")
             self.unmount_device(device_node, mount_point)
@@ -1196,6 +1198,7 @@ class ArgusPiStation:
 
 
 def main() -> None:
+    """Main entry point for ArgusPi scanning station daemon."""
     try:
         station = ArgusPiStation()
     except Exception as err:
