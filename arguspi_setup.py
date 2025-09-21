@@ -924,6 +924,30 @@ def install_packages(config: dict) -> None:
         print(f"✗ Error: Failed to install basic packages: {e}")
         sys.exit(1)
 
+    # Check if GUI is enabled and desktop environment is needed
+    if config.get("use_gui"):
+        # Check if desktop environment is already installed
+        try:
+            result = subprocess.run(["dpkg", "-l", "raspberrypi-ui-mods"], capture_output=True, text=True)
+            if result.returncode != 0:
+                print("⚠ Desktop environment not found. Installing for GUI support...")
+                try:
+                    subprocess.run(["apt-get", "install", "-y", "raspberrypi-ui-mods", "lxde-core", "lightdm", "x11-xserver-utils"], check=True)
+                    print("✓ Installed desktop environment (raspberrypi-ui-mods, lxde-core, lightdm)")
+                    
+                    # Enable graphical boot target
+                    subprocess.run(["systemctl", "set-default", "graphical.target"], check=True)
+                    subprocess.run(["systemctl", "enable", "lightdm"], check=True)
+                    print("✓ Configured system for graphical boot")
+                    
+                except subprocess.CalledProcessError as e:
+                    print(f"⚠ Warning: Failed to install desktop environment: {e}")
+                    print("  GUI will not work properly. Consider using Raspberry Pi OS Desktop image.")
+            else:
+                print("✓ Desktop environment already installed")
+        except subprocess.CalledProcessError:
+            print("⚠ Warning: Could not check desktop environment status")
+
     # Optionally install ClamAV with daemon for performance
     if config.get("use_clamav"):
         try:
