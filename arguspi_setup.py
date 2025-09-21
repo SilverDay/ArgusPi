@@ -924,14 +924,33 @@ def install_packages(config: dict) -> None:
         print(f"✗ Error: Failed to install basic packages: {e}")
         sys.exit(1)
 
-    # Optionally install ClamAV
+    # Optionally install ClamAV with daemon for performance
     if config.get("use_clamav"):
         try:
-            subprocess.run(["apt-get", "install", "-y", "clamav"], check=True)
-            print("✓ Installed ClamAV")
+            # Install complete ClamAV package including daemon for optimal performance
+            subprocess.run(["apt-get", "install", "-y", "clamav", "clamav-daemon", "clamav-freshclam"], check=True)
+            print("✓ Installed ClamAV with daemon (clamav, clamav-daemon, clamav-freshclam)")
+            
+            # Start and enable ClamAV services
+            try:
+                subprocess.run(["systemctl", "enable", "clamav-daemon"], check=True)
+                subprocess.run(["systemctl", "enable", "clamav-freshclam"], check=True)
+                print("✓ Enabled ClamAV services for automatic startup")
+                
+                # Start freshclam service to update virus database
+                subprocess.run(["systemctl", "start", "clamav-freshclam"], check=True)
+                print("✓ Started ClamAV database update service")
+                
+                # Note: clamav-daemon will start automatically after freshclam updates database
+                print("  Note: ClamAV daemon will start automatically after virus database update")
+                
+            except subprocess.CalledProcessError as e:
+                print(f"⚠ Warning: Failed to configure ClamAV services: {e}")
+                print("  ClamAV is installed but may need manual service configuration")
+                
         except subprocess.CalledProcessError as e:
             print(f"⚠ Warning: Failed to install ClamAV: {e}")
-            print("  ClamAV scanning will be disabled.")
+            print("  ClamAV scanning will be disabled - scanning will be much slower!")
 
     # Optionally install gpiozero for LED control
     if config.get("use_led"):
@@ -1011,36 +1030,61 @@ ACTION=="remove", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partiti
     subprocess.run(["udevadm", "control", "--reload"])
 
 
-def create_systemd_service() -> None:
-    """Create ArgusPi systemd service as backup (disabled by default for GUI mode)."""
+def create_systemd_service(config: dict) -> None:
+    """Create ArgusPi systemd service with GUI support when enabled."""
     service_path = "/etc/systemd/system/arguspi.service"
-    service_content = f"""
-[Unit]
-Description=ArgusPi USB Security Scanner (Background Service)
+    
+    # Get user info for GUI environment if GUI is enabled
+    if config.get("use_gui", True):
+        username, uid, gid, homedir = get_desktop_user()
+        service_content = f"""[Unit]
+Description=ArgusPi USB Security Scanner with GUI
 After=graphical-session.target
 Wants=graphical-session.target
 
 [Service]
 Type=simple
-User=pi
+User=root
 Environment=DISPLAY=:0
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-ExecStart=/usr/bin/env python3 /usr/local/bin/arguspi_scan_station.py
+Environment=XDG_RUNTIME_DIR=/run/user/{uid}
+Environment=HOME={homedir}
+ExecStart=/usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
 Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=multi-user.target
 """
+    else:
+        # Non-GUI mode - simpler service
+        service_content = """[Unit]
+Description=ArgusPi USB Security Scanner (Background Service)
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+"""
+    
     with open(service_path, "w") as f:
         f.write(service_content.strip() + "\n")
+    
     print(f"✓ ArgusPi systemd service file created at {service_path}")
     subprocess.run(["systemctl", "daemon-reload"], check=False)
-    # Don't enable by default - desktop autostart handles GUI mode
-    # subprocess.run(["systemctl", "enable", "arguspi.service"], check=False)
-    # subprocess.run(["systemctl", "restart", "arguspi.service"], check=False)
-    print("✓ ArgusPi systemd service created (use desktop autostart for GUI)")
-    print("  Enable systemd service manually if needed: sudo systemctl enable arguspi")
+    
+    if config.get("use_gui", True):
+        print("✓ SystemD service configured for GUI mode")
+        print("  Service will be enabled during GUI configuration")
+    else:
+        print("✓ SystemD service configured for background mode")
+        print("  Enable with: sudo systemctl enable arguspi")
 
 
 def get_desktop_user() -> tuple:
@@ -1083,99 +1127,80 @@ def get_desktop_user() -> tuple:
 
 
 def create_desktop_autostart(config: dict) -> bool:
-    """Create desktop autostart entry for ArgusPi GUI."""
+    """Configure GUI startup using systemd service instead of desktop autostart (more reliable for sudo)."""
     if not config.get("use_gui", True):
-        print("GUI disabled - skipping desktop autostart configuration")
+        print("GUI disabled - skipping GUI startup configuration")
         return True
         
     try:
-        print("Setting up desktop autostart for ArgusPi GUI...")
+        print("Setting up GUI startup using systemd service...")
         
-        # Get the actual desktop user
+        # Skip desktop autostart (doesn't work with sudo) and ensure systemd service handles GUI
+        print("  Desktop autostart with sudo doesn't work reliably during boot")
+        print("  Using systemd service instead for reliable GUI startup")
+        
+        # Get the actual desktop user for environment variables
         username, uid, gid, homedir = get_desktop_user()
         
-        # Create autostart directory for the detected user
-        autostart_dir = os.path.join(homedir, ".config", "autostart")
-        config_dir = os.path.join(homedir, ".config")
-        
-        print(f"Creating autostart directory: {autostart_dir}")
-        os.makedirs(autostart_dir, exist_ok=True)
-        os.makedirs(config_dir, exist_ok=True)
-        
-        # Create desktop entry for ArgusPi
-        desktop_entry_path = os.path.join(autostart_dir, "arguspi.desktop")
-        desktop_entry_content = f"""[Desktop Entry]
-Type=Application
-Name=ArgusPi USB Security Scanner
-Exec=python3 /usr/local/bin/arguspi_scan_station.py
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-Comment=ArgusPi USB Security Scanner GUI
-"""
-        
-        with open(desktop_entry_path, "w") as f:
-            f.write(desktop_entry_content)
-        
-        # Set proper ownership to the detected user
+        # The systemd service should already be created, just enable it for GUI startup
         try:
-            # Set ownership recursively for the .config directory
-            for root, dirs, files in os.walk(config_dir):
-                os.chown(root, uid, gid)
-                for directory in dirs:
-                    dir_path = os.path.join(root, directory)
-                    os.chown(dir_path, uid, gid)
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    os.chown(file_path, uid, gid)
+            subprocess.run(["systemctl", "enable", "arguspi"], check=True)
+            print("✓ SystemD service enabled for automatic GUI startup")
+            print(f"  GUI will start automatically on boot for user environment")
+            print(f"  Service runs with proper permissions and GUI access")
             
-            print(f"✓ Set ownership of {config_dir} to {username}:{gid}")
-        except Exception as e:
-            print(f"⚠ Warning: Could not set file ownership: {e}")
-            print("  You may need to run: sudo chown -R {username}:{gid} {config_dir}")
-        
-        # Verify the file was created
-        if os.path.exists(desktop_entry_path):
-            print(f"✓ Desktop autostart configured at {desktop_entry_path}")
-            print(f"  ArgusPi GUI will start automatically for user: {username}")
-            
-            # Also provide manual instructions
-            print("\nDesktop autostart file created. If GUI doesn't start automatically:")
-            print(f"  1. Enable desktop autologin using: sudo raspi-config")
-            print(f"  2. Check file exists: ls -la {desktop_entry_path}")
-            print(f"  3. Test manually: python3 /usr/local/bin/arguspi_scan_station.py")
             return True
-        else:
-            print(f"✗ Failed to create desktop autostart file at {desktop_entry_path}")
+            
+        except subprocess.CalledProcessError as e:
+            print(f"⚠ Warning: Could not enable systemd service: {e}")
             return False
         
     except Exception as e:
-        print(f"⚠ Warning: Could not configure desktop autostart: {e}")
+        print(f"⚠ Warning: Could not configure GUI startup: {e}")
         print("Manual configuration required:")
-        
-        # Get user info for manual instructions
-        try:
-            username, uid, gid, homedir = get_desktop_user()
-            manual_dir = os.path.join(homedir, ".config", "autostart")
-            manual_file = os.path.join(manual_dir, "arguspi.desktop")
-            
-            print(f"\nManual steps:")
-            print(f"  1. Create directory: mkdir -p {manual_dir}")
-            print(f"  2. Create file: {manual_file}")
-            print(f"  3. Add content:")
-            print(f"     [Desktop Entry]")
-            print(f"     Type=Application") 
-            print(f"     Name=ArgusPi USB Security Scanner")
-            print(f"     Exec=python3 /usr/local/bin/arguspi_scan_station.py")
-            print(f"     Hidden=false")
-            print(f"     NoDisplay=false") 
-            print(f"     X-GNOME-Autostart-enabled=true")
-            print(f"  4. Fix ownership: sudo chown -R {username}:{gid} {os.path.join(homedir, '.config')}")
-            
-        except Exception:
-            print("  See README.md troubleshooting section for manual setup")
-        
+        print("  After reboot, start GUI manually with: sudo python3 /usr/local/bin/arguspi_scan_station.py")
+        print("  Or enable systemd service with: sudo systemctl enable arguspi && sudo systemctl start arguspi")
         return False
+
+
+def verify_clamav_installation() -> None:
+    """Verify ClamAV installation and provide guidance if issues are found."""
+    try:
+        # Check ClamAV version
+        result = subprocess.run(["clamscan", "--version"], capture_output=True, text=True, check=True)
+        print(f"✓ ClamAV command-line scanner: {result.stdout.strip()}")
+        
+        # Check daemon status
+        daemon_result = subprocess.run(["systemctl", "is-active", "clamav-daemon"], 
+                                     capture_output=True, text=True)
+        if daemon_result.returncode == 0:
+            print("✓ ClamAV daemon is running")
+        else:
+            print("⚠ ClamAV daemon not yet running (will start after database update)")
+            
+        # Check freshclam status
+        freshclam_result = subprocess.run(["systemctl", "is-active", "clamav-freshclam"], 
+                                        capture_output=True, text=True)
+        if freshclam_result.returncode == 0:
+            print("✓ ClamAV database update service is running")
+        else:
+            print("⚠ ClamAV database update service not running")
+            
+        # Check if database files exist
+        db_files = subprocess.run(["find", "/var/lib/clamav", "-name", "*.cvd", "-o", "-name", "*.cld"], 
+                                capture_output=True, text=True)
+        if db_files.stdout.strip():
+            print("✓ ClamAV virus database files found")
+            print("  📈 Performance: With ClamAV daemon, scanning ~10 minutes for 1000 files")
+        else:
+            print("⚠ ClamAV virus database not yet downloaded")
+            print("  Run 'sudo freshclam' after setup to download virus definitions")
+            
+    except subprocess.CalledProcessError as e:
+        print(f"✗ ClamAV verification failed: {e}")
+        print("⚠ WARNING: Without ClamAV daemon, scanning will be extremely slow!")
+        print("  📉 Performance: Without ClamAV, ~5.5 hours for 1000 files")
+        print("  💡 Recommendation: Run the troubleshooting steps in TROUBLESHOOTING.md")
 
 
 def main() -> None:
@@ -1212,6 +1237,12 @@ def main() -> None:
                 sys.exit(1)
 
     install_packages(config)
+    
+    # Verify ClamAV installation if enabled
+    if config.get("use_clamav"):
+        print("\n--- Verifying ClamAV Installation ---")
+        verify_clamav_installation()
+    
     deploy_scanning_script(config)
     create_udev_rule()
     
@@ -1232,7 +1263,7 @@ def main() -> None:
             print("⚠ GUI configuration failed")
             print("  See troubleshooting output above for manual steps")
     
-    create_systemd_service()
+    create_systemd_service(config)
     
     # Stop and disable systemd service if it's running (we use desktop autostart for GUI)
     try:

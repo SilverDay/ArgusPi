@@ -136,7 +136,7 @@ cat > $HOME/.config/autostart/arguspi.desktop << EOF
 [Desktop Entry]
 Type=Application
 Name=ArgusPi USB Security Scanner
-Exec=python3 /usr/local/bin/arguspi_scan_station.py
+Exec=sudo python3 /usr/local/bin/arguspi_scan_station.py
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -147,32 +147,60 @@ EOF
 sudo chown -R $USERNAME:$USERNAME $HOME/.config
 ```
 
-**If GUI starts manually but not on boot:**
+**If GUI requires sudo and desktop autostart doesn't work:**
+
+Desktop autostart entries with `sudo` don't work reliably because they can't handle password prompts during boot. The solution is to disable the desktop autostart and use the systemd service instead.
 
 ```bash
-# Add delay to autostart (some systems need time for desktop to load)
-sed -i 's/Exec=python3/Exec=sh -c "sleep 10 && python3"/' $HOME/.config/autostart/arguspi.desktop
+# 1. Disable desktop autostart (since it conflicts with sudo requirements)
+rm -f $HOME/.config/autostart/arguspi.desktop
 
-# Alternative: Use systemd user service instead
+# 2. Make sure the systemd service is enabled and running
+sudo systemctl enable arguspi
+sudo systemctl start arguspi
+
+# 3. Check if the service is working
+sudo systemctl status arguspi
+sudo journalctl -u arguspi -f
+
+# 4. The GUI should now appear automatically after reboot via the systemd service
+```
+
+**Alternative: Use systemd user service with proper environment:**
+
+If you prefer a user service approach:
+
+```bash
+# 1. Remove desktop autostart
+rm -f $HOME/.config/autostart/arguspi.desktop
+
+# 2. Create user systemd service
 mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/arguspi.service << EOF
+cat > ~/.config/systemd/user/arguspi-gui.service << EOF
 [Unit]
 Description=ArgusPi GUI
 After=graphical-session.target
+Wants=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=python3 /usr/local/bin/arguspi_scan_station.py
+ExecStart=/usr/bin/sudo /usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
 Restart=always
+RestartSec=10
 Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 
 [Install]
 WantedBy=default.target
 EOF
 
-# Enable user service
-systemctl --user enable arguspi.service
-systemctl --user start arguspi.service
+# 3. Enable and start the user service
+systemctl --user daemon-reload
+systemctl --user enable arguspi-gui.service
+systemctl --user start arguspi-gui.service
+
+# 4. Check status
+systemctl --user status arguspi-gui.service
 ```
 
 **If using Wayland instead of X11:**
@@ -211,24 +239,129 @@ sudo systemctl enable getty@tty1.service
 
 ### Scanning is Very Slow
 
-**Symptoms:** USB scans take hours instead of minutes
+**Symptoms:** USB scans take hours instead of minutes, even with ClamAV enabled
 
-**Root Cause:** Not using ClamAV pre-filtering
+**Root Causes and Solutions:**
 
-**Solution:**
+**1. ClamAV not properly installed or daemon not running:**
 
 ```bash
-# Quick fix: Enable ClamAV
-sudo apt-get install clamav clamav-daemon
+# Check if ClamAV daemon is running
+sudo systemctl status clamav-daemon
+sudo systemctl status clamav-freshclam
+
+# If clamav-daemon is not found, install the complete ClamAV package:
+sudo apt update
+sudo apt install -y clamav clamav-daemon clamav-freshclam
+
+# Start and enable ClamAV services
+sudo systemctl enable clamav-daemon
+sudo systemctl enable clamav-freshclam
+sudo systemctl start clamav-freshclam
+sudo systemctl start clamav-daemon
+
+# Check ClamAV configuration in ArgusPi
+cat /etc/arguspi/config.json | grep -i clam
+
+# Test ClamAV manually
+clamscan --version
+echo "test" > /tmp/testfile
+clamscan /tmp/testfile
+rm /tmp/testfile
+```
+
+**2. ClamAV database not updated:**
+
+```bash
+# Update ClamAV database
 sudo freshclam
-# Edit config: "use_clamav": true
+
+# Check database age
+sudo find /var/lib/clamav -name "*.cvd" -o -name "*.cld" | xargs ls -la
+
+# Restart ClamAV daemon after update
+sudo systemctl restart clamav-daemon
 sudo systemctl restart arguspi
+```
+
+**3. ArgusPi configuration issue:**
+
+```bash
+# Verify ClamAV is enabled in config
+python3 -c "
+import json
+config = json.load(open('/etc/arguspi/config.json'))
+print(f'use_clamav: {config.get(\"use_clamav\", \"NOT SET\")}')
+print(f'clamav_timeout: {config.get(\"clamav_timeout\", \"NOT SET\")}')
+"
+
+# If use_clamav is false or missing, fix it:
+sudo python3 -c "
+import json
+with open('/etc/arguspi/config.json', 'r') as f:
+    config = json.load(f)
+config['use_clamav'] = True
+config['clamav_timeout'] = 60  # 60 seconds timeout
+with open('/etc/arguspi/config.json', 'w') as f:
+    json.dump(config, f, indent=2)
+print('✓ ClamAV enabled in config')
+"
+
+# Restart ArgusPi after config change
+sudo systemctl restart arguspi
+```
+
+**4. Still sending all files to VirusTotal:**
+
+Check the logs to see if ClamAV is actually pre-filtering:
+
+```bash
+# Monitor scanning in real-time
+sudo tail -f /var/log/arguspi.log
+
+# Look for ClamAV activity patterns:
+# - Should see "ClamAV scan started" messages
+# - Should see "CLEAN" results from ClamAV before VirusTotal
+# - Should see fewer VirusTotal API calls
+
+# Check recent ClamAV activity
+sudo journalctl -u arguspi -n 100 | grep -i clam
+```
+
+**5. Large files or many files:**
+
+```bash
+# Check what's being scanned
+sudo tail -f /var/log/arguspi.log | grep -E "Scanning|files found"
+
+# If too many files, check scan scope
+lsblk  # Insert USB and check size
+# Consider excluding certain file types if appropriate
 ```
 
 **Performance Comparison:**
 
 - **Without ClamAV**: Every file sent to VirusTotal (20s per file)
-- **With ClamAV**: Only suspicious files sent to VirusTotal
+- **With ClamAV working properly**: Only suspicious files sent to VirusTotal
+- **Expected speed with ClamAV**: ~10 minutes for 1000 files vs ~5.5 hours without
+
+**Quick ClamAV Test:**
+
+```bash
+# Test ClamAV performance on a sample file
+sudo python3 -c "
+import subprocess
+import time
+start = time.time()
+result = subprocess.run(['clamscan', '/usr/local/bin/arguspi_scan_station.py'], 
+                       capture_output=True, text=True)
+print(f'ClamAV scan took {time.time() - start:.2f} seconds')
+print(f'Result: {result.returncode}')
+print(result.stdout)
+"
+```
+
+If ClamAV takes more than a few seconds per file, there might be a performance issue with the ClamAV installation itself.
 
 ### Out of VirusTotal API Quota
 
