@@ -58,7 +58,7 @@ ArgusPi features a professional touchscreen interface optimized for Raspberry Pi
 ### 1. Download ArgusPi
 
 ```bash
-git clone https://github.com/yourusername/arguspi.git
+git clone https://github.com/silverday/arguspi.git
 cd arguspi
 ```
 
@@ -481,7 +481,7 @@ See our [Contributing Guidelines](CONTRIBUTING.md) to help bring these features 
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/arguspi.git
+git clone https://github.com/silverday/arguspi.git
 cd arguspi
 
 # Install dependencies
@@ -533,8 +533,8 @@ ArgusPi is released under the **MIT License** - see the [LICENSE](LICENSE) file 
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/arguspi/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/arguspi/discussions)
+- **Issues**: [GitHub Issues](https://github.com/silverday/arguspi/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/silverday/arguspi/discussions)
 - **Security Issues**: Please report privately to security@yourproject.com
 
 ---
