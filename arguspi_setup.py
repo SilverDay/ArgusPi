@@ -951,13 +951,33 @@ def install_packages(config: dict) -> None:
             print(f"⚠ Warning: Failed to install Tkinter: {e}")
             print("  ArgusPi GUI will be disabled.")
 
-    # Install Python dependencies via pip
+    # Install Python dependencies - handle externally-managed-environment
+    python_packages = ["pyudev", "requests"]
+    
+    # Try apt packages first (preferred on modern systems)
     try:
-        subprocess.run(["pip3", "install", "--upgrade", "pyudev", "requests"], check=True)
-        print("✓ Installed Python dependencies (pyudev, requests)")
-    except subprocess.CalledProcessError as e:
-        print(f"✗ Error: Failed to install Python dependencies: {e}")
-        sys.exit(1)
+        apt_packages = ["python3-pyudev", "python3-requests"]
+        subprocess.run(["apt-get", "install", "-y"] + apt_packages, check=True)
+        print("✓ Installed Python dependencies via apt (python3-pyudev, python3-requests)")
+    except subprocess.CalledProcessError:
+        print("⚠ Warning: Could not install via apt, trying pip...")
+        
+        # Fall back to pip with --break-system-packages for externally-managed environments
+        try:
+            subprocess.run(["pip3", "install", "--break-system-packages", "--upgrade"] + python_packages, check=True)
+            print("✓ Installed Python dependencies via pip with --break-system-packages (pyudev, requests)")
+        except subprocess.CalledProcessError as e:
+            # Final fallback: try regular pip (for older systems)
+            try:
+                subprocess.run(["pip3", "install", "--upgrade"] + python_packages, check=True)
+                print("✓ Installed Python dependencies via pip (pyudev, requests)")
+            except subprocess.CalledProcessError as final_e:
+                print(f"✗ Error: Failed to install Python dependencies via all methods:")
+                print(f"  - apt failed: {e}")
+                print(f"  - pip failed: {final_e}")
+                print("  Please install python3-pyudev and python3-requests manually:")
+                print("  sudo apt install python3-pyudev python3-requests")
+                sys.exit(1)
 
     print("✓ ArgusPi package installation complete.")
 

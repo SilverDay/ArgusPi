@@ -36,21 +36,35 @@ Thank you for your interest in ## 🎯 Areas for Contribution
 
 ### Requirements
 
-- Raspberry Pi 3B+ or newer (for hardware testing)
+- Raspberry Pi 5 (for hardware testing)
 - Python 3.9+
 - Git
 
 ### Setup
 
 ```bash
-git clone https://github.com/yourusername/arguspi.git
+git clone https://github.com/silverday/arguspi.git
 cd arguspi
 
-# Install dependencies
-pip3 install -r requirements.txt
-
-# Set up development environment
+# Run the setup script (handles modern Python environments automatically)
 sudo python3 arguspi_setup.py
+```
+
+### Troubleshooting Installation
+
+**"externally-managed-environment" error:**
+If you encounter this error, the setup script will automatically handle it by:
+1. First trying to install packages via `apt` (preferred)
+2. Falling back to `pip` with `--break-system-packages` if needed
+3. Providing manual installation instructions if all methods fail
+
+**Manual installation if needed:**
+```bash
+# Install Python packages via apt (recommended)
+sudo apt install python3-pyudev python3-requests python3-gpiozero python3-tk
+
+# Or use pip with break-system-packages flag
+sudo pip3 install --break-system-packages pyudev requests
 ```
 
 ## 📋 Coding Standards
