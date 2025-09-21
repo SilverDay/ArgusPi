@@ -411,29 +411,93 @@ curl -H "x-apikey: YOUR_API_KEY" https://www.virustotal.com/api/v3/files/e3b0c44
 
 **GUI not displaying**
 
-If the ArgusPi GUI doesn't appear on screen:
+If the ArgusPi GUI doesn't appear on screen after reboot:
 
 ```bash
-# Check if autologin is enabled
+# Step 1: Check if desktop autostart entry exists and is correct
+ls -la /home/pi/.config/autostart/arguspi.desktop
+cat /home/pi/.config/autostart/arguspi.desktop
+
+# Step 2: Check if autologin is enabled
 sudo raspi-config nonint get_boot_behaviour
 
-# Check if X11 display is available
-echo $DISPLAY
-
-# Test Tkinter GUI support
-python3 -c "import tkinter; print('Tkinter works')"
-
-# Check if desktop autostart entry exists
-ls -la /home/pi/.config/autostart/arguspi.desktop
-
-# Manually start ArgusPi GUI for testing
+# Step 3: Test GUI manually to isolate the issue
 python3 /usr/local/bin/arguspi_scan_station.py
 
-# Check for GUI process running
+# Step 4: Check for running processes
 ps aux | grep arguspi
+
+# Step 5: Check desktop environment
+echo $DESKTOP_SESSION
+echo $XDG_CURRENT_DESKTOP
+
+# Step 6: Test basic Tkinter functionality
+python3 -c "import tkinter; root = tkinter.Tk(); root.title('Test GUI'); root.after(3000, root.quit); root.mainloop()"
+
+# Step 7: Check system logs for errors
+journalctl --user -f | grep -i arguspi
+```
+
+**Common solutions:**
+
+**If autostart file is missing or incorrect:**
+```bash
+# Recreate the desktop autostart entry
+mkdir -p /home/pi/.config/autostart
+cat > /home/pi/.config/autostart/arguspi.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=ArgusPi USB Security Scanner
+Exec=python3 /usr/local/bin/arguspi_scan_station.py
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Comment=ArgusPi USB Security Scanner GUI
+EOF
+
+# Fix ownership
+sudo chown -R pi:pi /home/pi/.config
+```
+
+**If GUI starts manually but not on boot:**
+```bash
+# Add delay to autostart (some systems need time for desktop to load)
+sed -i 's/Exec=python3/Exec=sh -c "sleep 10 && python3"/' /home/pi/.config/autostart/arguspi.desktop
+
+# Alternative: Use systemd user service instead
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/arguspi.service << EOF
+[Unit]
+Description=ArgusPi GUI
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=python3 /usr/local/bin/arguspi_scan_station.py
+Restart=always
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Enable user service
+systemctl --user enable arguspi.service
+systemctl --user start arguspi.service
+```
+
+**If using Wayland instead of X11:**
+```bash
+# Check display server
+echo $XDG_SESSION_TYPE
+
+# If Wayland, switch to X11 or set environment
+# Edit autostart file to include Wayland support
+sed -i 's/Exec=python3/Exec=env GDK_BACKEND=x11 python3/' /home/pi/.config/autostart/arguspi.desktop
 ```
 
 **Manual desktop autostart setup** (if automatic configuration failed):
+
 ```bash
 # Create autostart directory
 mkdir -p /home/pi/.config/autostart
@@ -493,16 +557,36 @@ sudo tail -f /var/log/arguspi.log | grep -i "quota\|limit"
 To update to a newer version:
 
 ```bash
-# Stop the service
-sudo systemctl stop arguspi
+# Stop any running ArgusPi processes
+sudo systemctl stop arguspi 2>/dev/null || true
+pkill -f arguspi_scan_station.py 2>/dev/null || true
 
 # Update code
 git pull origin main
 
-# Run setup again
+# Run setup again to apply new configurations
 sudo python3 arguspi_setup.py
 
-# Service will restart automatically
+# Reboot to ensure clean startup
+sudo reboot
+```
+
+**After updating, if GUI doesn't start:**
+
+```bash
+# 1. Verify new desktop autostart was created
+cat /home/pi/.config/autostart/arguspi.desktop
+
+# 2. Check if old systemd service is interfering
+sudo systemctl status arguspi
+sudo systemctl stop arguspi 2>/dev/null || true
+sudo systemctl disable arguspi 2>/dev/null || true
+
+# 3. Test manual startup
+python3 /usr/local/bin/arguspi_scan_station.py
+
+# 4. If manual works but autostart doesn't, try user systemd service
+systemctl --user enable ~/.config/systemd/user/arguspi.service 2>/dev/null || echo "User service not found - using desktop autostart"
 ```
 
 ## 🚀 Future Enhancements
