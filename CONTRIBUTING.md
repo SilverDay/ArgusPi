@@ -54,11 +54,13 @@ sudo python3 arguspi_setup.py
 
 **"externally-managed-environment" error:**
 If you encounter this error, the setup script will automatically handle it by:
+
 1. First trying to install packages via `apt` (preferred)
 2. Falling back to `pip` with `--break-system-packages` if needed
 3. Providing manual installation instructions if all methods fail
 
 **Manual installation if needed:**
+
 ```bash
 # Install Python packages via apt (recommended)
 sudo apt install python3-pyudev python3-requests python3-gpiozero python3-tk

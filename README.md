@@ -111,7 +111,7 @@ During setup, you can configure:
 | **API Key**            | VirusTotal API key for cloud scanning | _Optional_        | Enables cloud analysis |
 | **Mount Path**         | Directory for mounting USB devices    | `/mnt/arguspi`    | N/A                    |
 | **Request Interval**   | Seconds between VirusTotal requests   | `20` (free tier)  | 4 requests/min max     |
-| **ClamAV Integration** | Enable local antivirus scanning       | `No`              | **🚀 HUGE speedup!**   |
+| **ClamAV Integration** | Enable local antivirus scanning       | `Yes`             | **🚀 HUGE speedup!**   |
 | **SIEM Integration**   | Send events to security monitoring    | `No`              | Enterprise visibility  |
 | **RGB LED**            | GPIO pins for status LED              | `17,27,22`        | N/A                    |
 | **GUI Interface**      | Enable touchscreen interface          | `Yes`             | N/A                    |
@@ -414,37 +414,50 @@ curl -H "x-apikey: YOUR_API_KEY" https://www.virustotal.com/api/v3/files/e3b0c44
 If the ArgusPi GUI doesn't appear on screen after reboot:
 
 ```bash
-# Step 1: Check if desktop autostart entry exists and is correct
-ls -la /home/pi/.config/autostart/arguspi.desktop
-cat /home/pi/.config/autostart/arguspi.desktop
+# Step 1: Check what user account was detected during setup
+# Look for "Desktop user detected: " in the setup output
+# Or check manually:
+whoami
+echo $HOME
 
-# Step 2: Check if autologin is enabled
+# Step 2: Check if desktop autostart entry exists for YOUR user
+# Replace 'pi' with your actual username if different
+ls -la $HOME/.config/autostart/arguspi.desktop
+cat $HOME/.config/autostart/arguspi.desktop
+
+# Step 3: Check if autologin is enabled for your user
 sudo raspi-config nonint get_boot_behaviour
+# Should return 4 for Desktop Autologin
 
-# Step 3: Test GUI manually to isolate the issue
+# Step 4: Test GUI manually to isolate the issue
 python3 /usr/local/bin/arguspi_scan_station.py
 
-# Step 4: Check for running processes
+# Step 5: Check for running processes
 ps aux | grep arguspi
 
-# Step 5: Check desktop environment
+# Step 6: Check desktop environment
 echo $DESKTOP_SESSION
 echo $XDG_CURRENT_DESKTOP
 
-# Step 6: Test basic Tkinter functionality
+# Step 7: Test basic Tkinter functionality
 python3 -c "import tkinter; root = tkinter.Tk(); root.title('Test GUI'); root.after(3000, root.quit); root.mainloop()"
 
-# Step 7: Check system logs for errors
+# Step 8: Check system logs for errors
 journalctl --user -f | grep -i arguspi
 ```
 
 **Common solutions:**
 
-**If autostart file is missing or incorrect:**
+**If autostart file is missing or in wrong location:**
+
 ```bash
-# Recreate the desktop autostart entry
-mkdir -p /home/pi/.config/autostart
-cat > /home/pi/.config/autostart/arguspi.desktop << EOF
+# Find your actual username and home directory
+USERNAME=$(whoami)
+HOMEDIR=$HOME
+
+# Recreate the desktop autostart entry for YOUR user
+mkdir -p $HOME/.config/autostart
+cat > $HOME/.config/autostart/arguspi.desktop << EOF
 [Desktop Entry]
 Type=Application
 Name=ArgusPi USB Security Scanner
@@ -455,11 +468,12 @@ X-GNOME-Autostart-enabled=true
 Comment=ArgusPi USB Security Scanner GUI
 EOF
 
-# Fix ownership
-sudo chown -R pi:pi /home/pi/.config
+# Fix ownership (replace USERNAME with your actual username)
+sudo chown -R $USERNAME:$USERNAME $HOME/.config
 ```
 
 **If GUI starts manually but not on boot:**
+
 ```bash
 # Add delay to autostart (some systems need time for desktop to load)
 sed -i 's/Exec=python3/Exec=sh -c "sleep 10 && python3"/' /home/pi/.config/autostart/arguspi.desktop
@@ -487,6 +501,7 @@ systemctl --user start arguspi.service
 ```
 
 **If using Wayland instead of X11:**
+
 ```bash
 # Check display server
 echo $XDG_SESSION_TYPE
@@ -499,11 +514,15 @@ sed -i 's/Exec=python3/Exec=env GDK_BACKEND=x11 python3/' /home/pi/.config/autos
 **Manual desktop autostart setup** (if automatic configuration failed):
 
 ```bash
-# Create autostart directory
-mkdir -p /home/pi/.config/autostart
+# Use YOUR actual username and home directory
+USERNAME=$(whoami)
+HOMEDIR=$HOME
+
+# Create autostart directory for your user
+mkdir -p $HOME/.config/autostart
 
 # Create desktop entry
-cat > /home/pi/.config/autostart/arguspi.desktop << EOF
+cat > $HOME/.config/autostart/arguspi.desktop << EOF
 [Desktop Entry]
 Type=Application
 Name=ArgusPi USB Security Scanner
@@ -514,15 +533,27 @@ X-GNOME-Autostart-enabled=true
 Comment=ArgusPi USB Security Scanner GUI
 EOF
 
-# Fix ownership
-sudo chown -R pi:pi /home/pi/.config
+# Fix ownership for your user
+sudo chown -R $USERNAME:$USERNAME $HOME/.config
 ```
 
 **Manual autologin setup** (if automatic configuration failed):
 
 ```bash
+# Method 1: Using raspi-config
 sudo raspi-config
 # Navigate to: System Options → Boot / Auto Login → Desktop Autologin
+
+# Method 2: Direct systemd configuration (if raspi-config fails)
+USERNAME=$(whoami)
+sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
+sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $USERNAME --noclear %I \$TERM
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable getty@tty1.service
 ```
 
 **Scanning is very slow**

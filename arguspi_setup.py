@@ -369,8 +369,8 @@ def prompt_wifi_configuration() -> bool:
     print("Configure wireless network connectivity for your ArgusPi station")
 
     # Check if user wants to configure WiFi
-    configure_wifi_input = input("Configure WiFi network (Y/n)? ").strip().lower()
-    if configure_wifi_input in ("n", "no"):
+    configure_wifi_input = input("Configure WiFi network (y/N)? ").strip().lower()
+    if configure_wifi_input not in ("y", "yes"):
         print("Skipping WiFi configuration")
         return True
 
@@ -732,9 +732,9 @@ def prompt_configuration() -> dict:
 
     # Ask user whether to enable a local ClamAV scan before contacting VirusTotal.
     use_clamav_input = input(
-        "Enable local ClamAV scan before VirusTotal (y/N)? "
+        "Enable local ClamAV scan before VirusTotal (Y/n)? "
     ).strip().lower()
-    use_clamav = use_clamav_input in ("y", "yes")
+    use_clamav = use_clamav_input not in ("n", "no")
     clamav_cmd = "clamscan"
 
     # Prompt for LED indicator configuration
@@ -1043,45 +1043,124 @@ WantedBy=graphical-session.target
     print("  Enable systemd service manually if needed: sudo systemctl enable arguspi")
 
 
-def configure_autologin() -> None:
+def get_desktop_user() -> tuple:
+    """Get the actual desktop user account (not always 'pi' in modern Pi OS)."""
+    try:
+        # Try to get the user who invoked sudo (the real desktop user)
+        real_user = os.environ.get('SUDO_USER')
+        if real_user and real_user != 'root':
+            import pwd
+            user_info = pwd.getpwnam(real_user)
+            print(f"✓ Detected desktop user: {real_user} (UID: {user_info.pw_uid})")
+            return real_user, user_info.pw_uid, user_info.pw_gid, user_info.pw_dir
+    except Exception:
+        pass
+    
+    # Fallback 1: Try the traditional 'pi' user
+    try:
+        import pwd
+        pi_user = pwd.getpwnam("pi")
+        print("✓ Using traditional 'pi' user account")
+        return "pi", pi_user.pw_uid, pi_user.pw_gid, pi_user.pw_dir
+    except KeyError:
+        pass
+    
+    # Fallback 2: Look for first non-system user (UID >= 1000)
+    try:
+        import pwd
+        for user in pwd.getpwall():
+            if user.pw_uid >= 1000 and user.pw_uid < 65534:  # Regular user range
+                if user.pw_dir.startswith('/home/'):
+                    print(f"✓ Found desktop user: {user.pw_name} (UID: {user.pw_uid})")
+                    return user.pw_name, user.pw_uid, user.pw_gid, user.pw_dir
+    except Exception:
+        pass
+    
+    # Final fallback: Use environment or defaults
+    current_user = os.environ.get('USER', 'pi')
+    print(f"⚠ Warning: Using fallback user: {current_user}")
+    return current_user, 1000, 1000, f"/home/{current_user}"
+
+
+def configure_autologin() -> bool:
     """Configure Raspberry Pi to automatically login to desktop for GUI display."""
     try:
         print("Configuring desktop autologin for GUI display...")
         
-        # Use raspi-config to enable desktop autologin (Boot to Desktop with autologin)
-        result = subprocess.run(
-            ["raspi-config", "nonint", "do_boot_behaviour", "B4"], 
-            check=True, 
-            capture_output=True, 
-            text=True
-        )
+        # Get the actual desktop user
+        username, uid, gid, homedir = get_desktop_user()
         
-        print("✓ Desktop autologin configured successfully")
-        print("  ArgusPi GUI will appear on the screen after reboot")
-        return True
+        # Method 1: Use raspi-config to enable desktop autologin
+        try:
+            result = subprocess.run(
+                ["raspi-config", "nonint", "do_boot_behaviour", "B4"], 
+                check=True, 
+                capture_output=True, 
+                text=True
+            )
+            print("✓ Desktop autologin configured successfully via raspi-config")
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            print(f"⚠ raspi-config method failed: {e}")
         
-    except subprocess.CalledProcessError as e:
-        print(f"⚠ Warning: Could not configure autologin automatically: {e}")
-        print("  You may need to enable desktop autologin manually:")
-        print("  sudo raspi-config → System Options → Boot / Auto Login → Desktop Autologin")
+        # Method 2: Direct systemd configuration for modern systems
+        try:
+            print("Attempting direct systemd autologin configuration...")
+            
+            # Create getty override directory
+            override_dir = "/etc/systemd/system/getty@tty1.service.d"
+            os.makedirs(override_dir, exist_ok=True)
+            
+            # Create autologin override
+            override_content = f"""[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin {username} --noclear %I $TERM
+"""
+            
+            override_file = os.path.join(override_dir, "autologin.conf")
+            with open(override_file, "w") as f:
+                f.write(override_content)
+            
+            # Reload systemd
+            subprocess.run(["systemctl", "daemon-reload"], check=True)
+            subprocess.run(["systemctl", "enable", "getty@tty1.service"], check=True)
+            
+            print(f"✓ Direct systemd autologin configured for user: {username}")
+            return True
+            
+        except Exception as e:
+            print(f"⚠ Direct systemd configuration failed: {e}")
+        
+        print("⚠ Warning: Automatic autologin configuration failed")
+        print("  Manual configuration required:")
+        print(f"  sudo raspi-config → System Options → Boot / Auto Login → Desktop Autologin")
+        print(f"  Or manually configure autologin for user: {username}")
         return False
-    except FileNotFoundError:
-        print("⚠ Warning: raspi-config not found - manual configuration needed:")
-        print("  Enable desktop autologin for ArgusPi GUI to display properly")
+        
+    except Exception as e:
+        print(f"⚠ Warning: Autologin configuration error: {e}")
         return False
 
 
-def create_desktop_autostart(config: dict) -> None:
+def create_desktop_autostart(config: dict) -> bool:
     """Create desktop autostart entry for ArgusPi GUI."""
     if not config.get("use_gui", True):
-        return
+        print("GUI disabled - skipping desktop autostart configuration")
+        return True
         
     try:
         print("Setting up desktop autostart for ArgusPi GUI...")
         
-        # Create autostart directory for pi user
-        autostart_dir = "/home/pi/.config/autostart"
+        # Get the actual desktop user
+        username, uid, gid, homedir = get_desktop_user()
+        
+        # Create autostart directory for the detected user
+        autostart_dir = os.path.join(homedir, ".config", "autostart")
+        config_dir = os.path.join(homedir, ".config")
+        
+        print(f"Creating autostart directory: {autostart_dir}")
         os.makedirs(autostart_dir, exist_ok=True)
+        os.makedirs(config_dir, exist_ok=True)
         
         # Create desktop entry for ArgusPi
         desktop_entry_path = os.path.join(autostart_dir, "arguspi.desktop")
@@ -1098,27 +1177,64 @@ Comment=ArgusPi USB Security Scanner GUI
         with open(desktop_entry_path, "w") as f:
             f.write(desktop_entry_content)
         
-        # Set proper ownership to pi user
-        import pwd
-        pi_uid = pwd.getpwnam("pi").pw_uid
-        pi_gid = pwd.getpwnam("pi").pw_gid
+        # Set proper ownership to the detected user
+        try:
+            # Set ownership recursively for the .config directory
+            for root, dirs, files in os.walk(config_dir):
+                os.chown(root, uid, gid)
+                for directory in dirs:
+                    dir_path = os.path.join(root, directory)
+                    os.chown(dir_path, uid, gid)
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    os.chown(file_path, uid, gid)
+            
+            print(f"✓ Set ownership of {config_dir} to {username}:{gid}")
+        except Exception as e:
+            print(f"⚠ Warning: Could not set file ownership: {e}")
+            print("  You may need to run: sudo chown -R {username}:{gid} {config_dir}")
         
-        # Set ownership recursively for the autostart directory
-        for root, dirs, files in os.walk("/home/pi/.config"):
-            for directory in dirs:
-                dir_path = os.path.join(root, directory)
-                os.chown(dir_path, pi_uid, pi_gid)
-            for file in files:
-                file_path = os.path.join(root, file)
-                os.chown(file_path, pi_uid, pi_gid)
-        
-        print(f"✓ Desktop autostart configured at {desktop_entry_path}")
-        print("  ArgusPi GUI will start automatically with desktop session")
-        return True
+        # Verify the file was created
+        if os.path.exists(desktop_entry_path):
+            print(f"✓ Desktop autostart configured at {desktop_entry_path}")
+            print(f"  ArgusPi GUI will start automatically for user: {username}")
+            
+            # Also provide manual instructions
+            print("\nDesktop autostart file created. If GUI doesn't start automatically:")
+            print(f"  1. Verify autologin is enabled for user: {username}")
+            print(f"  2. Check file exists: ls -la {desktop_entry_path}")
+            print(f"  3. Test manually: python3 /usr/local/bin/arguspi_scan_station.py")
+            return True
+        else:
+            print(f"✗ Failed to create desktop autostart file at {desktop_entry_path}")
+            return False
         
     except Exception as e:
         print(f"⚠ Warning: Could not configure desktop autostart: {e}")
-        print("  You may need to start ArgusPi GUI manually after login")
+        print("Manual configuration required:")
+        
+        # Get user info for manual instructions
+        try:
+            username, uid, gid, homedir = get_desktop_user()
+            manual_dir = os.path.join(homedir, ".config", "autostart")
+            manual_file = os.path.join(manual_dir, "arguspi.desktop")
+            
+            print(f"\nManual steps:")
+            print(f"  1. Create directory: mkdir -p {manual_dir}")
+            print(f"  2. Create file: {manual_file}")
+            print(f"  3. Add content:")
+            print(f"     [Desktop Entry]")
+            print(f"     Type=Application") 
+            print(f"     Name=ArgusPi USB Security Scanner")
+            print(f"     Exec=python3 /usr/local/bin/arguspi_scan_station.py")
+            print(f"     Hidden=false")
+            print(f"     NoDisplay=false") 
+            print(f"     X-GNOME-Autostart-enabled=true")
+            print(f"  4. Fix ownership: sudo chown -R {username}:{gid} {os.path.join(homedir, '.config')}")
+            
+        except Exception:
+            print("  See README.md troubleshooting section for manual setup")
+        
         return False
 
 
@@ -1128,6 +1244,18 @@ def main() -> None:
     print("    ArgusPi USB Security Scanner Setup")
     print("=" * 50)
     require_root()
+    
+    # Detect and display user information for GUI setup
+    print("\n--- User Account Detection ---")
+    try:
+        username, uid, gid, homedir = get_desktop_user()
+        print(f"Desktop user detected: {username}")
+        print(f"Home directory: {homedir}")
+        print(f"UID: {uid}, GID: {gid}")
+    except Exception as e:
+        print(f"Warning: Could not detect user account: {e}")
+    print()
+    
     config = prompt_configuration()
     write_config(config)
 
@@ -1149,8 +1277,15 @@ def main() -> None:
     
     # Configure autologin for GUI display (if GUI is enabled)
     if config.get("use_gui", True):
-        configure_autologin()
-        create_desktop_autostart(config)
+        print("\n--- GUI Configuration ---")
+        autologin_success = configure_autologin()
+        autostart_success = create_desktop_autostart(config)
+        
+        if autologin_success and autostart_success:
+            print("✓ GUI configuration completed successfully")
+        else:
+            print("⚠ GUI configuration completed with warnings")
+            print("  See troubleshooting output above for manual steps")
     
     create_systemd_service()
     

@@ -576,10 +576,7 @@ class ArgusPiStation:
         # Initialise GUI if enabled
         if self.use_gui:
             try:
-                self.gui = ArgusPiGUI(
-                    use_screensaver=self.use_screensaver,
-                    screensaver_timeout=self.screensaver_timeout
-                )
+                self.gui = ArgusPiGUI()
             except Exception as e:
                 self.log(f"Failed to initialise ArgusPi GUI: {e}. Running headless.", "WARN")
                 self.use_gui = False
@@ -967,69 +964,69 @@ class ArgusPiStation:
                         continue
 
                     # Decide whether to query VirusTotal
-                vt_result = None
-                status = "clean"
-                if self.use_clamav and not local_scan_infected and not local_scan_error:
-                    # Local scan clean; skip VT
+                    vt_result = None
                     status = "clean"
-                elif self.api_key is None:
-                    # Offline mode - no VirusTotal available
-                    if local_scan_infected:
-                        status = "infected"
-                    elif local_scan_error:
-                        status = "error"
-                    else:
+                    if self.use_clamav and not local_scan_infected and not local_scan_error:
+                        # Local scan clean; skip VT
                         status = "clean"
-                else:
-                    # Online mode - query VirusTotal
-                    vt_result = self.query_virustotal(file_hash)
-                    if vt_result is None:
-                        status = "error"
-                        error_occurred = True
-                    elif vt_result["malicious"] > 0 or vt_result["suspicious"] > 0:
-                        status = "infected"
+                    elif self.api_key is None:
+                        # Offline mode - no VirusTotal available
+                        if local_scan_infected:
+                            status = "infected"
+                        elif local_scan_error:
+                            status = "error"
+                        else:
+                            status = "clean"
+                    else:
+                        # Online mode - query VirusTotal
+                        vt_result = self.query_virustotal(file_hash)
+                        if vt_result is None:
+                            status = "error"
+                            error_occurred = True
+                        elif vt_result["malicious"] > 0 or vt_result["suspicious"] > 0:
+                            status = "infected"
+                            infected_found = True
+                            infected_files += 1
+                            # Send SIEM threat detection event
+                            self.send_siem_event("threat_detected", {
+                                "file_path": file_path,
+                                "file_name": name,
+                                "file_hash": file_hash,
+                                "device": os.path.basename(mount_point),
+                                "detection_method": "virustotal",
+                                "malicious_count": vt_result["malicious"],
+                                "suspicious_count": vt_result["suspicious"],
+                                "total_engines": vt_result.get("total", 0)
+                            })
+                        else:
+                            status = "clean"
+                    # Update infected flag from local scan
+                    if local_scan_infected:
                         infected_found = True
                         infected_files += 1
-                        # Send SIEM threat detection event
+                        status = "infected"
+                        # Send SIEM threat detection event for ClamAV detection
                         self.send_siem_event("threat_detected", {
                             "file_path": file_path,
                             "file_name": name,
                             "file_hash": file_hash,
                             "device": os.path.basename(mount_point),
-                            "detection_method": "virustotal",
-                            "malicious_count": vt_result["malicious"],
-                            "suspicious_count": vt_result["suspicious"],
-                            "total_engines": vt_result.get("total", 0)
+                            "detection_method": "clamav"
                         })
-                    else:
-                        status = "clean"
-                # Update infected flag from local scan
-                if local_scan_infected:
-                    infected_found = True
-                    infected_files += 1
-                    status = "infected"
-                    # Send SIEM threat detection event for ClamAV detection
-                    self.send_siem_event("threat_detected", {
-                        "file_path": file_path,
-                        "file_name": name,
-                        "file_hash": file_hash,
-                        "device": os.path.basename(mount_point),
-                        "detection_method": "clamav"
-                    })
-                if local_scan_error:
-                    error_occurred = True
-                    status = "error"
-                # Combine details for logging
-                details: Dict[str, object] = {}
-                if self.use_clamav:
-                    details["local_infected"] = local_scan_infected
-                    details["local_error"] = local_scan_error
-                if vt_result is not None:
-                    details["vt"] = vt_result
-                # Log the outcome
-                self.log(
-                    f"{status.upper()} | {file_hash} | {name} | details: {details}"
-                )
+                    if local_scan_error:
+                        error_occurred = True
+                        status = "error"
+                    # Combine details for logging
+                    details: Dict[str, object] = {}
+                    if self.use_clamav:
+                        details["local_infected"] = local_scan_infected
+                        details["local_error"] = local_scan_error
+                    if vt_result is not None:
+                        details["vt"] = vt_result
+                    # Log the outcome
+                    self.log(
+                        f"{status.upper()} | {file_hash} | {name} | details: {details}"
+                    )
 
         except (OSError, FileNotFoundError, PermissionError) as e:
             self.log(f"USB device access failed during scan (device likely removed): {e}", "WARN")
