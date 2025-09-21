@@ -94,7 +94,6 @@ import socket
 import logging
 import logging.handlers
 import tkinter as tk
-from queue import Empty
 import random
 from datetime import datetime
 from threading import Thread, Lock

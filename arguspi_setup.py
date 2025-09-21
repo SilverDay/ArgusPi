@@ -267,7 +267,7 @@ def configure_wifi(ssid: str, password: str = "", security: str = "WPA2", hidden
                     if not skip_network:
                         new_lines.extend(network_block)
                     network_block = []
-                                elif (len([l for l in new_lines if l.strip().startswith('network={')]) >
+                elif (len([l for l in new_lines if l.strip().startswith('network={')]) >
                       len([l for l in new_lines if l.strip() == '}'])):
                     # Inside a network block
                     if f'ssid="{ssid}"' in line:
