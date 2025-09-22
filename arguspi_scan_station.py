@@ -195,6 +195,10 @@ class ArgusPiGUI:
         self.scan_progress = {"current": 0, "total": 0}
         self.current_action = "Waiting for USB device…"
         
+        # File progress tracking
+        self.files_scanned = 0
+        self.total_files = 0
+        
         # Create root window
         self.root = tk.Tk()
         self.root.title("ArgusPi USB Security Scanner")
@@ -786,7 +790,7 @@ class ArgusPiGUI:
         self.progress_bar.pack(pady=(0, 15))  # Increased spacing
         
         # Timer display - Much larger font
-        self.timer_var = tk.StringVar(value="00:00")
+        self.timer_var = tk.StringVar(value="00:00 | 0/0 files")
         self.timer_label = tk.Label(
             self.progress_frame,
             textvariable=self.timer_var,
@@ -836,6 +840,7 @@ class ArgusPiGUI:
         """Update the timer display in simple mode."""
         if self.simple_mode and hasattr(self, 'timer_var'):
             try:
+                # Format time display
                 if self.scan_start_time is not None:
                     # Use final scan time if scan is complete, otherwise show running time
                     if hasattr(self, 'final_scan_time') and self.final_scan_time is not None:
@@ -845,9 +850,15 @@ class ArgusPiGUI:
                     
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
-                    self.timer_var.set(f"{minutes:02d}:{seconds:02d}")
+                    time_str = f"{minutes:02d}:{seconds:02d}"
                 else:
-                    self.timer_var.set("00:00")
+                    time_str = "00:00"
+                
+                # Format file progress display
+                files_str = f"{self.files_scanned}/{self.total_files} files"
+                
+                # Combine time and file progress
+                self.timer_var.set(f"{time_str} | {files_str}")
                 
                 # Schedule next update
                 self.root.after(1000, self._update_timer)
@@ -860,6 +871,10 @@ class ArgusPiGUI:
             return
             
         try:
+            # Update file counters for timer display
+            self.files_scanned = current
+            self.total_files = total
+            
             def update_ui():
                 # Update progress bar
                 if hasattr(self, 'progress_bar'):
@@ -890,6 +905,9 @@ class ArgusPiGUI:
         import time
         self.scan_start_time = time.time()
         self.final_scan_time = None  # Reset any previous final time
+        # Reset file counters
+        self.files_scanned = 0
+        self.total_files = 0
 
     def stop_scan_timer(self) -> None:
         """Stop the scan timer and preserve the final elapsed time."""
@@ -898,6 +916,7 @@ class ArgusPiGUI:
             self.final_scan_time = time.time() - self.scan_start_time
         # Keep scan_start_time for now so timer can still display the final time
         # It will be reset when a new scan starts
+        # File counters are preserved to show final count
 
     def _get_status_color(self, status: str) -> str:
         """Get the background color for a given status."""
