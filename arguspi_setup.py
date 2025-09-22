@@ -1101,20 +1101,31 @@ def create_systemd_service(config: dict) -> None:
         username, uid, gid, homedir = get_desktop_user()
         service_content = f"""[Unit]
 Description=ArgusPi USB Security Scanner with GUI
-After=graphical.target
-Wants=graphical.target
+After=graphical-session.target
+Wants=graphical-session.target
+# Wait for desktop session to be fully ready
+After=display-manager.service
+Wants=display-manager.service
 
 [Service]
 Type=simple
 User=root
 Group=root
+# Wait for X11 to be available
+ExecStartPre=/bin/bash -c 'while ! pgrep -x "Xorg\\|X" > /dev/null; do sleep 1; done'
+# Wait for desktop session to start
+ExecStartPre=/bin/bash -c 'while ! pgrep -f "lxsession\\|gnome-session\\|xfce4-session" > /dev/null; do sleep 1; done'
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/{uid}
 Environment=XAUTHORITY={homedir}/.Xauthority
 Environment=HOME={homedir}
+# Allow X11 forwarding from root
+ExecStartPre=/bin/bash -c 'su {username} -c "xhost +local:root" || true'
 ExecStart=/usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
 Restart=always
-RestartSec=5
+RestartSec=10
+# Give more time for desktop to be ready
+TimeoutStartSec=60
 
 [Install]
 WantedBy=graphical.target

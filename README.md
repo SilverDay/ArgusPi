@@ -69,6 +69,75 @@ That's it! ArgusPi will start automatically after reboot. Insert a USB device to
 - **[🐛 Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions for common issues and problems
 - **[🤝 Contributing Guidelines](CONTRIBUTING.md)** - How to contribute to the project
 
+## 🔧 Troubleshooting
+
+### GUI Not Starting After Reboot
+
+If the GUI doesn't start after reboot, this is usually due to systemd service timing issues:
+
+1. **Run diagnostics**:
+   ```bash
+   python3 /usr/local/bin/gui_diagnostic.py
+   ```
+
+2. **Check service status**:
+   ```bash
+   sudo systemctl status arguspi.service
+   sudo journalctl -u arguspi.service -f
+   ```
+
+3. **Fix service configuration** (if diagnostic shows environment variable issues):
+   ```bash
+   bash fix_gui_service.sh
+   sudo systemctl restart arguspi.service
+   ```
+
+### Common Issues
+
+#### Display Configuration
+- **Issue**: Screen appears upside down
+- **Solution**: Config file moved to `/boot/firmware/config.txt` on newer Pi OS
+  ```bash
+  echo "display_rotate=2" | sudo tee -a /boot/firmware/config.txt
+  sudo reboot
+  ```
+
+#### Service Environment Issues
+- **Issue**: "No display name and no $DISPLAY environment variable"
+- **Cause**: Service starting before desktop session
+- **Solution**: The `fix_gui_service.sh` script adds proper timing dependencies
+
+#### X11 Permission Errors  
+- **Issue**: "X11 server not accessible"
+- **Cause**: Root service can't access user's X11 session
+- **Solution**: Fix script configures xhost permissions automatically
+
+### Files Overview
+
+- `arguspi_scan_station.py` - Main application with enhanced diagnostics
+- `arguspi_setup.py` - Installation script with improved service configuration  
+- `gui_diagnostic.py` - Comprehensive diagnostic tool for GUI issues
+- `deploy_arguspi.sh` - Complete deployment script with all fixes
+- `fix_gui_service.sh` - Service repair script for GUI timing issues
+
+### Deployment Script
+
+For a complete installation with all fixes:
+
+```bash
+chmod +x deploy_arguspi.sh
+./deploy_arguspi.sh
+```
+
+This includes:
+- System package updates
+- Python dependency installation
+- ClamAV setup and database updates
+- X11 utilities installation
+- Proper service configuration with timing fixes
+- Display configuration
+- Comprehensive diagnostics
+
 ## 📊 Scanning Modes
 
 | Mode                 | Speed         | Requirements      | Use Case                       |
