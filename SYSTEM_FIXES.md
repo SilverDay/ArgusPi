@@ -26,18 +26,30 @@ print(f"XAUTHORITY: {os.environ.get('XAUTHORITY', 'Not set')}")
 print(f"XDG_RUNTIME_DIR: {os.environ.get('XDG_RUNTIME_DIR', 'Not set')}")
 ```
 
-### 2. Updated Setup Script (`arguspi_setup.py`)
+### 2. Enhanced Setup Script (`arguspi_setup.py`)
 **Improvements:**
+- **Complete system preparation** including package updates and installation
 - Enhanced systemd service configuration with proper timing dependencies
 - Added wait conditions for X11 server and desktop session
 - Improved environment variable configuration
 - Extended timeout for desktop readiness
+- **Integrated all deployment functionality** - no separate deployment script needed
+- Automatic GUI diagnostic tool deployment and validation
+- ClamAV database updates during installation
+- X11 utilities installation for GUI support
 
 **Key Service Changes:**
 - `After=graphical-session.target display-manager.service`
 - `ExecStartPre` wait conditions for X11 and desktop session
 - X11 permission configuration via `xhost +local:root`
 - Increased `TimeoutStartSec=60` for desktop initialization
+
+**System Installation Features:**
+- Full system package updates (`apt update && upgrade`)
+- Core package installation (Python, X11, system utilities)
+- Python dependency management
+- ClamAV installation and configuration
+- Desktop environment verification and installation if needed
 
 ### 3. Comprehensive Diagnostic Tool (`gui_diagnostic.py`)
 **Features:**
@@ -71,23 +83,24 @@ print(f"XDG_RUNTIME_DIR: {os.environ.get('XDG_RUNTIME_DIR', 'Not set')}")
 - Configures all required environment variables
 - Sets up X11 forwarding permissions
 
-### 5. Complete Deployment Script (`deploy_arguspi.sh`)
-**Features:**
-- Full system preparation and package installation
-- Python dependency management
-- ClamAV installation and database updates
-- X11 utilities installation
-- Automatic service configuration
-- Display configuration management
-- Comprehensive diagnostic execution
+### 5. Consolidated Installation (`arguspi_setup.py`)
+**Purpose:** Single comprehensive script handling all installation and configuration
 
-**Installation Steps:**
-1. System package updates
-2. Python and system dependency installation
-3. ArgusPi file installation
-4. Service configuration
-5. Display configuration
-6. Diagnostic validation
+**Features:**
+- Complete system preparation and package management
+- Python dependency installation and validation
+- ClamAV installation and database updates  
+- X11 utilities and GUI support installation
+- Automatic diagnostic tool deployment
+- Proper systemd service configuration with all fixes
+- Display configuration management
+- Post-installation diagnostic validation
+
+**Replaces Need For:**
+- Separate deployment scripts
+- Manual package installation steps
+- Individual diagnostic tool setup
+- Complex multi-step installation procedures
 
 ### 6. Updated README (`README.md`)
 **Additions:**
@@ -159,11 +172,18 @@ The enhanced system provides comprehensive diagnostic information:
 ## Deployment Recommendations
 
 ### New Installations
-Use the complete deployment script:
+Use the comprehensive setup script:
 ```bash
-chmod +x deploy_arguspi.sh
-./deploy_arguspi.sh
+sudo python3 arguspi_setup.py
 ```
+**This single command now handles:**
+- System updates and package installation
+- Python dependencies and X11 utilities
+- ClamAV setup and database updates
+- GUI diagnostic tool deployment
+- Proper systemd service configuration
+- Display configuration
+- Validation and testing
 
 ### Existing Installations with Issues
 1. Run diagnostics: `python3 /usr/local/bin/gui_diagnostic.py`

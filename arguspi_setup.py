@@ -948,22 +948,46 @@ def install_packages(config: dict) -> None:
     """
     print("Installing required packages for ArgusPi. This may take a moment...")
 
-    # Update apt and install hdparm and pip
+    # Update system packages first
     try:
+        print("Updating system packages...")
         subprocess.run(["apt-get", "update"], check=True)
-        print("✓ APT package list updated")
+        subprocess.run(["apt-get", "upgrade", "-y"], check=True)
+        print("✓ System packages updated")
     except subprocess.CalledProcessError as e:
-        print(f"⚠ Warning: Failed to update package list: {e}")
+        print(f"⚠ Warning: Failed to update system packages: {e}")
 
+    # Install core system packages
     try:
-        subprocess.run(["apt-get", "install", "-y", "hdparm", "python3-pip", "wireless-tools"], check=True)
-        print("✓ Installed hdparm, python3-pip, and wireless-tools")
+        core_packages = [
+            "hdparm", "python3-pip", "wireless-tools", 
+            "python3-tk", "python3-dev", "python3-setuptools",
+            "usbutils", "lsof", "systemd", "git"
+        ]
+        subprocess.run(["apt-get", "install", "-y"] + core_packages, check=True)
+        print("✓ Installed core system packages")
     except subprocess.CalledProcessError as e:
         print(f"✗ Error: Failed to install basic packages: {e}")
         sys.exit(1)
 
+    # Install Python packages
+    try:
+        python_packages = ["psutil", "requests"]
+        subprocess.run(["pip3", "install", "--user"] + python_packages, check=True)
+        print("✓ Installed Python dependencies")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠ Warning: Failed to install Python packages: {e}")
+
     # Check if GUI is enabled and desktop environment is needed
     if config.get("use_gui"):
+        # Install X11 utilities for GUI support
+        try:
+            x11_packages = ["x11-xserver-utils", "xauth"]
+            subprocess.run(["apt-get", "install", "-y"] + x11_packages, check=True)
+            print("✓ Installed X11 utilities for GUI support")
+        except subprocess.CalledProcessError as e:
+            print(f"⚠ Warning: Failed to install X11 utilities: {e}")
+
         # Check if desktop environment is already installed
         try:
             result = subprocess.run(["dpkg", "-l", "raspberrypi-ui-mods"], capture_output=True, text=True)
@@ -992,6 +1016,16 @@ def install_packages(config: dict) -> None:
             # Install complete ClamAV package including daemon for optimal performance
             subprocess.run(["apt-get", "install", "-y", "clamav", "clamav-daemon", "clamav-freshclam"], check=True)
             print("✓ Installed ClamAV with daemon (clamav, clamav-daemon, clamav-freshclam)")
+            
+            # Update ClamAV virus database
+            print("Updating ClamAV virus database...")
+            try:
+                subprocess.run(["systemctl", "stop", "clamav-freshclam"], check=True)
+                subprocess.run(["freshclam"], check=True)
+                subprocess.run(["systemctl", "start", "clamav-freshclam"], check=True)
+                print("✓ ClamAV virus database updated")
+            except subprocess.CalledProcessError as e:
+                print(f"⚠ Warning: Could not update ClamAV database: {e}")
             
             # Start and enable ClamAV services
             try:
@@ -1064,7 +1098,8 @@ def install_packages(config: dict) -> None:
 
 
 def deploy_scanning_script(config: dict) -> None:
-    """Copy the ArgusPi scanning daemon script to /usr/local/bin and make it executable."""
+    """Copy the ArgusPi scanning daemon script and diagnostic tools to /usr/local/bin and make them executable."""
+    # Deploy main scanning script
     src_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "arguspi_scan_station.py")
     dest_script = "/usr/local/bin/arguspi_scan_station.py"
 
@@ -1075,6 +1110,16 @@ def deploy_scanning_script(config: dict) -> None:
     shutil.copy2(src_script, dest_script)
     os.chmod(dest_script, os.stat(dest_script).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     print(f"✓ ArgusPi scanning script deployed to {dest_script}")
+
+    # Deploy diagnostic tool if available
+    src_diagnostic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui_diagnostic.py")
+    if os.path.exists(src_diagnostic):
+        dest_diagnostic = "/usr/local/bin/gui_diagnostic.py"
+        shutil.copy2(src_diagnostic, dest_diagnostic)
+        os.chmod(dest_diagnostic, os.stat(dest_diagnostic).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        print(f"✓ GUI diagnostic tool deployed to {dest_diagnostic}")
+    else:
+        print("⚠ GUI diagnostic tool not found - skipping deployment")
 
 
 def create_udev_rule() -> None:
@@ -1408,6 +1453,17 @@ def main() -> None:
     
     # Create mount base directory
     os.makedirs(config["mount_base"], exist_ok=True)
+    
+    # Run GUI diagnostics if GUI is enabled and diagnostic tool was deployed
+    if config.get("use_gui", True):
+        diagnostic_path = "/usr/local/bin/gui_diagnostic.py"
+        if os.path.exists(diagnostic_path):
+            print("\n--- Running GUI Diagnostics ---")
+            try:
+                subprocess.run(["python3", diagnostic_path], check=True)
+            except subprocess.CalledProcessError:
+                print("⚠ GUI diagnostic tool encountered issues - check output above")
+    
     print()
     print("=" * 50)
     print("✓ ArgusPi USB scan station setup complete!")
@@ -1422,6 +1478,11 @@ def main() -> None:
         print("  - IMPORTANT: You must manually enable desktop autologin")
         print("  - Run: sudo raspi-config → System Options → Boot / Auto Login → Desktop Autologin")
         print("  - Then reboot: sudo reboot")
+        print()
+        print("🔧 If GUI doesn't start after reboot:")
+        print("  1. Run diagnostics: python3 /usr/local/bin/gui_diagnostic.py")
+        print("  2. Check service logs: sudo journalctl -u arguspi.service -f")
+        print("  3. Apply fix if needed: bash fix_gui_service.sh")
     
     print()
     print("🔌 Testing: Insert a USB device to test scanning")

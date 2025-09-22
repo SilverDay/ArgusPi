@@ -49,14 +49,23 @@ ArgusPi features a professional touchscreen interface optimized for Raspberry Pi
 git clone https://github.com/silverday/arguspi.git
 cd arguspi
 
-# 2. Run the setup script
+# 2. Run the comprehensive setup script
 sudo python3 arguspi_setup.py
 
 # 3. Reboot to start ArgusPi
 sudo reboot
 ```
 
-That's it! ArgusPi will start automatically after reboot. Insert a USB device to test scanning.
+That's it! The setup script now includes:
+- ✅ System package updates and installation
+- ✅ Python dependencies and X11 utilities  
+- ✅ ClamAV installation and database updates
+- ✅ GUI diagnostic tool deployment
+- ✅ Proper systemd service configuration with timing fixes
+- ✅ Display configuration support
+- ✅ Automatic diagnostic validation
+
+ArgusPi will start automatically after reboot. Insert a USB device to test scanning.
 
 ### Performance Note
 
@@ -115,28 +124,26 @@ If the GUI doesn't start after reboot, this is usually due to systemd service ti
 ### Files Overview
 
 - `arguspi_scan_station.py` - Main application with enhanced diagnostics
-- `arguspi_setup.py` - Installation script with improved service configuration  
-- `gui_diagnostic.py` - Comprehensive diagnostic tool for GUI issues
-- `deploy_arguspi.sh` - Complete deployment script with all fixes
-- `fix_gui_service.sh` - Service repair script for GUI timing issues
+- `arguspi_setup.py` - **Complete installation script** with all system preparation, fixes, and diagnostics
+- `gui_diagnostic.py` - Comprehensive diagnostic tool for GUI issues (deployed automatically)
+- `fix_gui_service.sh` - Service repair script for GUI timing issues (manual use if needed)
 
-### Deployment Script
+### Single Command Installation
 
-For a complete installation with all fixes:
+The setup script now handles everything:
 
 ```bash
-chmod +x deploy_arguspi.sh
-./deploy_arguspi.sh
+sudo python3 arguspi_setup.py
 ```
 
-This includes:
-- System package updates
-- Python dependency installation
-- ClamAV setup and database updates
-- X11 utilities installation
-- Proper service configuration with timing fixes
+This **single command** includes:
+- System package updates (`apt update && apt upgrade`)
+- All required package installation (Python, X11, ClamAV, etc.)
+- ClamAV database updates  
+- GUI diagnostic tool deployment
+- Proper systemd service with timing fixes
 - Display configuration
-- Comprehensive diagnostics
+- Comprehensive validation and testing
 
 ## 📊 Scanning Modes
 
