@@ -93,7 +93,9 @@ import hashlib
 import socket
 import logging
 import logging.handlers
+import time
 import tkinter as tk
+import tkinter.ttk as ttk
 import random
 from datetime import datetime
 from threading import Thread, Lock
@@ -183,7 +185,15 @@ class ArgusPiGUI:
     descriptive text, and shows a log window of recent events.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, simple_mode: bool = False) -> None:
+        # Store display mode
+        self.simple_mode = simple_mode
+        
+        # Initialize scan progress tracking
+        self.scan_start_time = None
+        self.scan_progress = {"current": 0, "total": 0}
+        self.current_action = "Waiting for USB device…"
+        
         # Create root window
         self.root = tk.Tk()
         self.root.title("ArgusPi USB Security Scanner")
@@ -254,8 +264,9 @@ class ArgusPiGUI:
         # Define status variables
         self.status_var = tk.StringVar(value="Waiting for USB device…")
 
-        # Create status panel
-        self.status_frame = tk.Frame(self.root, width=400, height=120, bg="blue")
+        # Create status panel - use proper color mapping instead of hardcoded blue
+        initial_color = self._get_status_color("waiting")
+        self.status_frame = tk.Frame(self.root, width=400, height=120, bg=initial_color)
         self.status_frame.pack(pady=20)
 
         # Status label
@@ -268,6 +279,91 @@ class ArgusPiGUI:
         )
         self.status_label.pack(pady=10)
 
+        # Mapping of statuses to colours and messages
+        self._color_map = {
+            "waiting": ("#0066cc", "Waiting for USB device…"),
+            "scanning": ("#ffcc00", "Scanning USB device…"),
+            "clean": ("#00cc00", "✓ Scan complete - No threats detected"),
+            "infected": ("#cc0000", "⚠ THREATS DETECTED!"),
+            "error": ("#cc0000", "✗ Error during scan"),
+            # Persistent result statuses (shown until USB device is removed)
+            "scan_clean": ("#00cc00", "✅ SUCCESS: USB device is clean - Safe to remove"),
+            "scan_infected": ("#cc0000", "🦠 INFECTED: Malware detected - Remove immediately!"),
+            "scan_error": ("#cc6600", "⚠️ ERROR: Scan failed - Check device and try again"),
+        }
+
+        # Create simple mode or detailed mode display
+        if self.simple_mode:
+            self._create_simple_mode_display()
+        else:
+            self._create_detailed_mode_display()
+
+    def _create_simple_mode_display(self) -> None:
+        """Create the simple user-friendly display with progress and timer."""
+        # Action display frame
+        self.action_frame = tk.Frame(self.root, bg="black")
+        self.action_frame.pack(pady=(10, 5), fill="x", padx=20)
+        
+        # Current action label
+        self.action_var = tk.StringVar(value=self.current_action)
+        self.action_label = tk.Label(
+            self.action_frame,
+            textvariable=self.action_var,
+            font=("Helvetica", 16),
+            fg="#cccccc",
+            bg="black",
+        )
+        self.action_label.pack()
+
+        # Progress and timer frame
+        self.progress_frame = tk.Frame(self.root, bg="black")
+        self.progress_frame.pack(pady=(5, 10), fill="x", padx=20)
+
+        # Progress bar
+        style = ttk.Style()
+        style.theme_use('clam')  # Use a theme that works well
+        style.configure("Custom.Horizontal.TProgressbar",
+                       background="#00cc00",    # Green progress bar
+                       troughcolor="#333333",   # Dark background
+                       borderwidth=1,
+                       lightcolor="#00cc00",
+                       darkcolor="#008800")
+        
+        self.progress_bar = ttk.Progressbar(
+            self.progress_frame,
+            mode='determinate',
+            length=400,
+            style="Custom.Horizontal.TProgressbar"
+        )
+        self.progress_bar.pack(side="left", padx=(0, 20))
+        
+        # Timer display
+        self.timer_var = tk.StringVar(value="00:00")
+        self.timer_label = tk.Label(
+            self.progress_frame,
+            textvariable=self.timer_var,
+            font=("Helvetica", 14, "bold"),
+            fg="#ffcc00",  # Yellow
+            bg="black",
+        )
+        self.timer_label.pack(side="right")
+
+        # Progress text (files scanned)
+        self.progress_var = tk.StringVar(value="Ready")
+        self.progress_label = tk.Label(
+            self.root,
+            textvariable=self.progress_var,
+            font=("Helvetica", 12),
+            fg="#aaaaaa",
+            bg="black",
+        )
+        self.progress_label.pack(pady=5)
+
+        # Start timer update
+        self._update_timer()
+
+    def _create_detailed_mode_display(self) -> None:
+        """Create the detailed technical log display."""
         # Log text area
         self.log_text = tk.Text(
             self.root,
@@ -288,14 +384,64 @@ class ArgusPiGUI:
         self.log_text.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.pack(side="right", fill="y")
 
-        # Mapping of statuses to colours and messages
-        self._color_map = {
-            "waiting": ("#0066cc", "Waiting for USB device…"),
-            "scanning": ("#ffcc00", "Scanning USB device…"),
-            "clean": ("#00cc00", "✓ Scan complete - No threats detected"),
-            "infected": ("#cc0000", "⚠ THREATS DETECTED!"),
-            "error": ("#cc0000", "✗ Error during scan"),
-        }
+    def _update_timer(self) -> None:
+        """Update the timer display in simple mode."""
+        if self.simple_mode and hasattr(self, 'timer_var'):
+            try:
+                if self.scan_start_time is not None:
+                    elapsed = time.time() - self.scan_start_time
+                    minutes = int(elapsed // 60)
+                    seconds = int(elapsed % 60)
+                    self.timer_var.set(f"{minutes:02d}:{seconds:02d}")
+                else:
+                    self.timer_var.set("00:00")
+                
+                # Schedule next update
+                self.root.after(1000, self._update_timer)
+            except Exception:
+                pass
+
+    def update_progress(self, current: int, total: int, action: str = "") -> None:
+        """Update progress bar and action text in simple mode."""
+        if not self.simple_mode:
+            return
+            
+        try:
+            def update_ui():
+                # Update progress bar
+                if hasattr(self, 'progress_bar') and total > 0:
+                    percentage = (current / total) * 100
+                    self.progress_bar['value'] = percentage
+                
+                # Update progress text
+                if hasattr(self, 'progress_var'):
+                    if total > 0:
+                        self.progress_var.set(f"Files scanned: {current} / {total}")
+                    else:
+                        self.progress_var.set("Ready")
+                
+                # Update action text
+                if hasattr(self, 'action_var') and action:
+                    self.action_var.set(action)
+            
+            self.root.after(0, update_ui)
+        except Exception:
+            pass
+
+    def start_scan_timer(self) -> None:
+        """Start the scan timer."""
+        import time
+        self.scan_start_time = time.time()
+
+    def stop_scan_timer(self) -> None:
+        """Stop the scan timer."""
+        self.scan_start_time = None
+
+    def _get_status_color(self, status: str) -> str:
+        """Get the background color for a given status."""
+        # Extract color from _color_map, default to blue for unknown status
+        color, _ = self._color_map.get(status, ("#0066cc", ""))
+        return color
 
     def set_status(self, status: str) -> None:
         """Update the status panel colour and label text."""
@@ -311,17 +457,19 @@ class ArgusPiGUI:
             pass
 
     def append_log(self, line: str) -> None:
-        """Append a line of text to the log area."""
-        def update() -> None:
-            self.log_text.configure(state="normal")
-            self.log_text.insert("end", line + "\n")
-            # Auto-scroll to the end
-            self.log_text.see("end")
-            self.log_text.configure(state="disabled")
-        try:
-            self.root.after(0, update)
-        except Exception:
-            pass
+        """Append a line of text to the log area (detailed mode only)."""
+        # Only append to log in detailed mode
+        if not self.simple_mode and hasattr(self, 'log_text'):
+            def update() -> None:
+                self.log_text.configure(state="normal")
+                self.log_text.insert("end", line + "\n")
+                # Auto-scroll to the end
+                self.log_text.see("end")
+                self.log_text.configure(state="disabled")
+            try:
+                self.root.after(0, update)
+            except Exception:
+                pass
 
     def _on_activity(self, event=None) -> None:
         """Handle user activity events to reset screensaver timer."""
@@ -349,6 +497,15 @@ class ArgusPiGUI:
             return
 
         self.screensaver_active = True
+
+        # Save current log content before hiding widgets
+        try:
+            if hasattr(self, 'log_text') and self.log_text:
+                self.saved_log_content = self.log_text.get("1.0", "end-1c")
+            else:
+                self.saved_log_content = ""
+        except Exception:
+            self.saved_log_content = ""
 
         # Hide main content
         for widget in self.root.winfo_children():
@@ -493,8 +650,10 @@ class ArgusPiGUI:
         )
         self.subtitle_label.pack()
 
-        # Status panel
-        self.status_frame = tk.Frame(self.root, width=400, height=120, bg="blue")
+        # Status panel - use current status color instead of hardcoded blue
+        current_status = self.status_var.get()
+        status_color = self._get_status_color(current_status)
+        self.status_frame = tk.Frame(self.root, width=400, height=120, bg=status_color)
         self.status_frame.pack(pady=20)
 
         # Status label
@@ -507,25 +666,21 @@ class ArgusPiGUI:
         )
         self.status_label.pack(pady=10)
 
-        # Log text area
-        self.log_text = tk.Text(
-            self.root,
-            height=10,
-            width=90,
-            bg="black",
-            fg="white",
-            state="disabled",
-            wrap="word",
-            borderwidth=0,
-            highlightthickness=0,
-            font=("Courier", 9)
-        )
-        self.log_text.pack(fill="both", expand=True, padx=20, pady=10)
-
-        # Scrollbar for the log text
-        self.scrollbar = tk.Scrollbar(self.log_text, command=self.log_text.yview)
-        self.log_text.configure(yscrollcommand=self.scrollbar.set)
-        self.scrollbar.pack(side="right", fill="y")
+        # Recreate mode-specific display
+        if self.simple_mode:
+            self._create_simple_mode_display()
+        else:
+            self._create_detailed_mode_display()
+            
+        # Restore saved log content if in detailed mode
+        if not self.simple_mode and hasattr(self, 'saved_log_content') and self.saved_log_content:
+            try:
+                self.log_text.configure(state="normal")
+                self.log_text.insert("1.0", self.saved_log_content)
+                self.log_text.see("end")  # Scroll to the end
+                self.log_text.configure(state="disabled")
+            except Exception:
+                pass
 
     def run(self) -> None:
         """Enter the Tk main loop."""
@@ -584,19 +739,27 @@ class ArgusPiStation:
         # Track active mounts for cleanup
         self.active_mounts = set()
         self.mount_lock = Lock()
+        # Track current scan results for persistent display
+        self.current_scan_result = None  # 'clean', 'infected', 'error', or None
+        self.current_device_node = None  # Track which device was scanned
+        self.result_lock = Lock()
         # Initialise LED after config loaded
         self._init_led()
         # Define colours for different statuses
         self.status_colors = {
-            "waiting": (0.0, 0.0, 1.0),    # blue
-            "scanning": (1.0, 1.0, 0.0),   # yellow
-            "clean": (0.0, 1.0, 0.0),      # green
-            "infected": (1.0, 0.0, 0.0),   # red
+            "waiting": (0.0, 0.0, 1.0),      # blue
+            "scanning": (1.0, 1.0, 0.0),     # yellow
+            "clean": (0.0, 1.0, 0.0),        # green
+            "infected": (1.0, 0.0, 0.0),     # red
+            # Persistent result statuses
+            "scan_clean": (0.0, 1.0, 0.0),   # green - clean result
+            "scan_infected": (1.0, 0.0, 0.0), # red - infected result  
+            "scan_error": (1.0, 0.5, 0.0),   # orange - error result
         }
         # Initialise GUI if enabled
         if self.use_gui:
             try:
-                self.gui = ArgusPiGUI()
+                self.gui = ArgusPiGUI(simple_mode=self.gui_simple_mode)
             except Exception as e:
                 self.log(f"Failed to initialise ArgusPi GUI: {e}. Running headless.", "WARN")
                 self.use_gui = False
@@ -631,6 +794,7 @@ class ArgusPiStation:
             self.led_pins = {"red": int(pins["red"]), "green": int(pins["green"]), "blue": int(pins["blue"])}
         # GUI configuration
         self.use_gui = bool(data.get("use_gui", False))
+        self.gui_simple_mode = bool(data.get("gui_simple_mode", False))
         # Screensaver configuration
         self.use_screensaver = bool(data.get("use_screensaver", True))
         self.screensaver_timeout = int(data.get("screensaver_timeout", 300))  # Default 5 minutes in seconds
@@ -838,7 +1002,7 @@ class ArgusPiStation:
         """Update the LED and GUI based on the named status."""
         # Update LED if configured
         if self.use_led:
-            if status == "error":
+            if status in ("error", "scan_error"):
                 self.blink_error()
             else:
                 colour = self.status_colors.get(status)
@@ -931,6 +1095,23 @@ class ArgusPiStation:
         error_occurred = False
         total_files = 0
         infected_files = 0
+        current_file = 0
+
+        # Update GUI with scanning action and start timer
+        if self.gui:
+            self.gui.start_scan_timer()
+            if self.gui.simple_mode:
+                self.gui.update_progress(0, 0, "Counting files...")
+
+        # Count total files first for progress tracking
+        if self.gui and self.gui.simple_mode:
+            try:
+                for root, dirs, files in os.walk(mount_point):
+                    total_files += len(files)
+            except Exception:
+                total_files = 0
+            
+            self.gui.update_progress(0, total_files, "Starting scan...")
 
         # Send SIEM event for scan start
         self.send_siem_event("scan_started", {
@@ -943,7 +1124,14 @@ class ArgusPiStation:
             for root, dirs, files in os.walk(mount_point):
                 for name in files:
                     file_path = os.path.join(root, name)
-                    total_files += 1
+                    current_file += 1
+
+                    # Update progress
+                    if self.gui and self.gui.simple_mode:
+                        action = f"Scanning: {name}"
+                        if self.use_clamav:
+                            action += " (local scan)"
+                        self.gui.update_progress(current_file, total_files, action)
 
                     # Check if mount point still exists (device removed)
                     if not os.path.exists(mount_point):
@@ -999,6 +1187,8 @@ class ArgusPiStation:
                             status = "clean"
                     else:
                         # Online mode - query VirusTotal
+                        if self.gui and self.gui.simple_mode:
+                            self.gui.update_progress(current_file, total_files, f"Checking cloud: {name}")
                         vt_result = self.query_virustotal(file_hash)
                         if vt_result is None:
                             status = "error"
@@ -1173,28 +1363,72 @@ class ArgusPiStation:
         """Perform scanning for a newly added USB device."""
         device_node = device.device_node
         self.log(f"ArgusPi detected USB device {device_node}. Preparing to scan...")
+        
+        # Update action for simple mode
+        if self.gui and self.gui.simple_mode:
+            self.gui.update_progress(0, 0, "Mounting USB device...")
+        
         mount_point = self.mount_device(device_node)
         if mount_point:
             # Set LED to scanning state
             self.update_status("scanning")
+            
+            # Update action for simple mode
+            if self.gui and self.gui.simple_mode:
+                self.gui.update_progress(0, 0, "Preparing to scan...")
+            
             try:
                 self.log(f"Mounted {device_node} at {mount_point}. Beginning ArgusPi scan.")
                 result = self.scan_path(mount_point)
-                # Determine LED outcome based on result
-                if result is None:
-                    self.update_status("error")
-                elif result is True:
-                    self.update_status("infected")
-                else:
-                    self.update_status("clean")
+                # Determine persistent result based on scan outcome
+                with self.result_lock:
+                    self.current_device_node = device_node
+                    if result is None:
+                        self.current_scan_result = "error"
+                        self.update_status("scan_error")
+                    elif result is True:
+                        self.current_scan_result = "infected" 
+                        self.update_status("scan_infected")
+                    else:
+                        self.current_scan_result = "clean"
+                        self.update_status("scan_clean")
+                        
+                    # Stop timer and show completion in simple mode
+                    if self.gui:
+                        self.gui.stop_scan_timer()
+                        if self.gui.simple_mode:
+                            if result is None:
+                                self.gui.update_progress(0, 0, "Scan failed - Error occurred")
+                            elif result is True:
+                                self.gui.update_progress(100, 100, "⚠️ THREATS DETECTED!")
+                            else:
+                                self.gui.update_progress(100, 100, "✅ Scan complete - Device is clean")
+                        
             finally:
+                # Update action for unmounting
+                if self.gui and self.gui.simple_mode:
+                    self.gui.update_progress(0, 0, "Unmounting USB device...")
+                
                 self.unmount_device(device_node, mount_point)
                 self.log(f"ArgusPi completed scan of {device_node} and unmounted.")
-                # Return to waiting state
-                self.update_status("waiting")
+                # Don't return to waiting - keep showing result until USB removed
         else:
             self.log(f"ArgusPi skipping scan for {device_node} due to mount failure.")
-            self.update_status("error")
+            with self.result_lock:
+                self.current_device_node = device_node
+                self.current_scan_result = "error"
+            self.update_status("scan_error")
+
+    def handle_device_removal(self, device) -> None:
+        """Handle USB device removal and reset status to waiting."""
+        device_node = device.device_node
+        with self.result_lock:
+            # Check if this device matches our tracked scan result
+            if self.current_device_node == device_node or self.current_scan_result is not None:
+                self.log(f"USB device {device_node} removed. Resetting to waiting state.", "INFO")
+                self.current_scan_result = None
+                self.current_device_node = None
+                self.update_status("waiting")
 
     def monitor_devices(self) -> None:
         """Monitor for USB block devices and trigger scanning on insert."""
@@ -1206,18 +1440,21 @@ class ArgusPiStation:
         self.update_status("waiting")
         for device in iter(monitor.poll, None):
             try:
-                # Only handle 'add' events; ignore removals
-                if device.action != "add":
-                    continue
-                # Only handle devices from the USB bus
-                if device.get("ID_BUS") != "usb":
-                    continue
-                # Skip devices with no filesystem type (e.g. raw partitions)
-                if "ID_FS_TYPE" not in device:
-                    continue
-                # Handle scanning in a new thread to avoid blocking further events
-                t = Thread(target=self.handle_device, args=(device,), daemon=True)
-                t.start()
+                # Handle both 'add' and 'remove' events for USB devices
+                if device.action == "add":
+                    # Only handle devices from the USB bus
+                    if device.get("ID_BUS") != "usb":
+                        continue
+                    # Skip devices with no filesystem type (e.g. raw partitions)
+                    if "ID_FS_TYPE" not in device:
+                        continue
+                    # Handle scanning in a new thread to avoid blocking further events
+                    t = Thread(target=self.handle_device, args=(device,), daemon=True)
+                    t.start()
+                elif device.action == "remove":
+                    # Handle USB device removal
+                    if device.get("ID_BUS") == "usb":
+                        self.handle_device_removal(device)
             except Exception as e:
                 self.log(f"Exception while processing device event: {e}", "ERROR")
 

@@ -677,9 +677,9 @@ def prompt_configuration() -> dict:
     print()
 
     api_key = ""
-    skip_vt = input("Skip VirusTotal integration for offline mode? (y/N): ").strip().lower()
+    include_vt = input("Include VirusTotal cloud analysis for enhanced detection? (Y/n): ").strip().lower()
 
-    if skip_vt in ("y", "yes"):
+    if include_vt in ("n", "no"):
         print("✓ Configuring ArgusPi for offline mode (local scanning only)")
         api_key = ""
     else:
@@ -848,6 +848,17 @@ def prompt_configuration() -> dict:
     # Default is yes if the user presses enter
     use_gui = use_gui_input not in ("n", "no")
 
+    # GUI display mode configuration
+    gui_simple_mode = False
+    if use_gui:
+        print("\n--- GUI Display Configuration ---")
+        print("Choose display mode for the touchscreen interface:")
+        print("• Simple Mode: Progress bar, timer, and clear status messages - ideal for general users")
+        print("• Detailed Mode: Technical log output and detailed information - ideal for IT professionals")
+        print()
+        mode_input = input("Use simple user-friendly display mode? (Y/n): ").strip().lower()
+        gui_simple_mode = mode_input not in ("n", "no")
+
     # Screensaver configuration for GUI
     screensaver_timeout = 300  # Default 5 minutes
     if use_gui:
@@ -881,6 +892,7 @@ def prompt_configuration() -> dict:
         "use_led": use_led,
         "led_pins": led_pins,
         "use_gui": use_gui,
+        "gui_simple_mode": gui_simple_mode if use_gui else False,
         "use_screensaver": use_screensaver if use_gui else False,
         "screensaver_timeout": screensaver_timeout * 60,  # Convert to seconds
         "siem_enabled": use_siem,

@@ -85,7 +85,7 @@ RGB LED Connections:
 ### 2. **Storage Preparation**
 
 - Use Raspberry Pi Imager to flash **Raspberry Pi OS Desktop (64-bit)**
-- Enable SSH and configure WiFi if needed  
+- Enable SSH and configure WiFi if needed
 - Insert SD card and initial boot
 
 > **⚠️ Important**: Use the **Desktop** image, not Lite. ArgusPi's GUI requires a desktop environment. The Lite image is console-only and will not display the GUI interface.
