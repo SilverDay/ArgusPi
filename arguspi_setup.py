@@ -40,6 +40,86 @@ from urllib.parse import urlparse
 import ipaddress
 
 
+def load_existing_config() -> dict:
+    """Load existing ArgusPi configuration if it exists."""
+    config_path = "/etc/arguspi/config.json"
+    
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError):
+            pass
+    
+    # Return default configuration if none exists
+    return {
+        "api_key": "",
+        "request_interval": 20,
+        "mount_base": "/mnt/arguspi",
+        "log_path": "/var/log/arguspi.log",
+        "use_clamav": True,
+        "clamav_cmd": "clamdscan",
+        "use_led": False,
+        "led_pins": {"red": 17, "green": 27, "blue": 22},
+        "use_gui": True,
+        "gui_simple_mode": False,
+        "station_name": "arguspi-station",
+        "siem_enabled": False,
+        "siem_webhook_url": "",
+        "display_rotation": 0
+    }
+
+
+def print_banner():
+    """Print an attractive banner for the setup script."""
+    print("\n" + "═" * 80)
+    print(" █████╗ ██████╗  ██████╗ ██╗   ██╗███████╗██████╗ ██╗")
+    print("██╔══██╗██╔══██╗██╔════╝ ██║   ██║██╔════╝██╔══██╗██║")
+    print("███████║██████╔╝██║  ███╗██║   ██║███████╗██████╔╝██║")
+    print("██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║██╔═══╝ ██║")
+    print("██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║██║     ██║")
+    print("╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝╚═╝     ╚═╝")
+    print("")
+    print("                    ArgusPi USB Security Scanner Setup")
+    print("                  Enhanced Configuration & Installation")
+    print("═" * 80)
+
+
+def prompt_with_default(prompt_text: str, default_value: any = None, password: bool = False) -> str:
+    """Prompt user with a default value shown in brackets."""
+    if default_value is not None:
+        if password and default_value:
+            display_default = f"[{'*' * 8}] (current key hidden)"
+        else:
+            display_default = f"[{default_value}]"
+        
+        full_prompt = f"{prompt_text} {display_default}: "
+    else:
+        full_prompt = f"{prompt_text}: "
+    
+    if password:
+        response = getpass(full_prompt).strip()
+    else:
+        response = input(full_prompt).strip()
+    
+    # Return default if empty response and default exists
+    if not response and default_value is not None:
+        return str(default_value)
+    
+    return response
+
+
+def prompt_yes_no(prompt_text: str, default: bool = True) -> bool:
+    """Prompt for yes/no with a default value."""
+    default_text = "Y/n" if default else "y/N"
+    response = input(f"{prompt_text} ({default_text}): ").strip().lower()
+    
+    if not response:
+        return default
+    
+    return response in ("y", "yes", "1", "true")
+
+
 def validate_webhook_url(url: str) -> bool:
     """
     Validate webhook URL to prevent SSRF attacks.
@@ -636,297 +716,288 @@ def require_root() -> None:
 
 
 def prompt_configuration() -> dict:
-    """Interactively ask the user for configuration values."""
-    print("=== ArgusPi USB Security Scanner Setup ===")
-    print("Setting up your Raspberry Pi as an ArgusPi scanning station...")
-    print()
-
-    # Station identification for multi-station deployments
-    print("Station Identification")
-    print("- This name will identify this ArgusPi station in logs and SIEM events")
-    print("- Examples: 'reception-desk', 'lab-entrance', 'security-checkpoint-1'")
-
+    """Interactively ask the user for configuration values with enhanced UX."""
+    print_banner()
+    
+    # Load existing configuration
+    existing_config = load_existing_config()
+    config_exists = os.path.exists("/etc/arguspi/config.json")
+    
+    if config_exists:
+        print("📋 Existing Configuration Found!")
+        print("   Current values will be shown in [brackets]. Press Enter to keep current values.\n")
+    else:
+        print("🆕 Setting up ArgusPi for the first time!")
+        print("   Default values will be shown in [brackets]. Press Enter to accept defaults.\n")
+    
+    config = {}
+    
+    # Station identification
+    print("┌─ 🏷️  Station Identification " + "─" * 48)
+    print("│ This name identifies this ArgusPi station in logs and SIEM events.")
+    print("│ Examples: 'reception-desk', 'lab-entrance', 'security-checkpoint-1'")
+    print("└" + "─" * 70)
+    
     while True:
-        station_name = input("Enter station name [arguspi-station]: ").strip()
-        if not station_name:
-            station_name = "arguspi-station"
-
-        # Validate station name (alphanumeric, hyphens, underscores only)
+        station_name = prompt_with_default(
+            "Station name", 
+            existing_config.get("station_name", "arguspi-station")
+        )
+        
+        # Validate station name
         if station_name.replace('-', '').replace('_', '').replace('.', '').isalnum():
+            config["station_name"] = station_name
+            print(f"   ✓ Station name: {station_name}\n")
             break
         else:
-            print("Station name must contain only letters, numbers, hyphens, underscores, and dots.")
+            print("   ❌ Station name must contain only letters, numbers, hyphens, underscores, and dots.\n")
 
-    print(f"✓ Station name set to: {station_name}")
-    print()
-
-    # WiFi Configuration
-    wifi_configured = prompt_wifi_configuration()
-    if not wifi_configured:
-        print("Warning: WiFi configuration failed. You may need to configure networking manually.")
-        retry = input("Continue with setup anyway (Y/n)? ").strip().lower()
-        if retry == "n" or retry == "no":
-            print("Setup cancelled. Please configure WiFi and try again.")
-            sys.exit(1)
-
-    # Prompt for API key (now optional for offline/air-gapped environments)
-    print("VirusTotal Integration (optional)")
-    print("- For network-connected environments: provides cloud-based threat analysis")
-    print("- For offline/air-gapped environments: skip this step to run in offline mode")
-    print("- You can always add this later by editing /etc/arguspi/config.json")
-    print()
-
-    api_key = ""
-    include_vt = input("Include VirusTotal cloud analysis for enhanced detection? (Y/n): ").strip().lower()
-
-    if include_vt in ("n", "no"):
-        print("✓ Configuring ArgusPi for offline mode (local scanning only)")
-        api_key = ""
-    else:
+    # VirusTotal Configuration
+    print("┌─ 🔍 VirusTotal Integration " + "─" * 47)
+    print("│ Cloud-based threat analysis (optional for offline environments)")
+    print("│ Leave empty to run in offline mode with local scanning only")
+    print("└" + "─" * 70)
+    
+    has_existing_key = bool(existing_config.get("api_key"))
+    use_virustotal = prompt_yes_no(
+        "Enable VirusTotal cloud analysis",
+        default=has_existing_key or not config_exists
+    )
+    
+    if use_virustotal:
         while True:
-            api_key = getpass(
-                "Enter your VirusTotal API key (input hidden): "
-            ).strip()
-            if api_key:
-                if len(api_key) != 64:
-                    print("Warning: VirusTotal API keys are typically 64 characters long.")
-                    confirm = input("Continue with this key anyway (y/N)? ").strip().lower()
-                    if confirm not in ("y", "yes"):
-                        continue
-
-                # Validate the API key
-                print("Testing API key...")
-                if validate_virustotal_api_key(api_key):
-                    print("✓ API key is valid")
-                    break
-                else:
-                    print("✗ API key is invalid or expired. Please try again.")
-                    continue
-            else:
-                print("API key cannot be empty (or use offline mode above). Please re-enter.")
-
-    # Validate mount base path
-    while True:
-        mount_base = input(
-            "Enter mount base directory [default /mnt/arguspi]: "
-        ).strip() or "/mnt/arguspi"
-        if os.path.isabs(mount_base):
-            break
-        print("Mount path must be absolute (start with /). Please re-enter.")
-
-    # Validate request interval
-    while True:
-        request_interval_str = input(
-            "Enter minimum seconds between VirusTotal requests (free tier = 20) [20]: "
-        ).strip()
-        try:
-            request_interval = int(request_interval_str) if request_interval_str else 20
-            if request_interval < 1:
-                print("Request interval must be at least 1 second.")
+            api_key = prompt_with_default(
+                "VirusTotal API key", 
+                existing_config.get("api_key", ""),
+                password=True
+            )
+            
+            if not api_key:
+                print("   ❌ API key cannot be empty when VirusTotal is enabled.")
+                if existing_config.get("api_key"):
+                    keep_existing = prompt_yes_no("Keep existing API key", default=True)
+                    if keep_existing:
+                        config["api_key"] = existing_config["api_key"]
+                        print("   ✓ Keeping existing API key\n")
+                        break
                 continue
-            if request_interval < 15:
-                print("Warning: Intervals less than 15 seconds may exceed free tier limits.")
-            break
-        except ValueError:
-            print("Invalid interval; please enter a number.")
-
-    # Ask user whether to enable a local ClamAV scan before contacting VirusTotal.
-    use_clamav_input = input(
-        "Enable local ClamAV scan before VirusTotal (Y/n)? "
-    ).strip().lower()
-    use_clamav = use_clamav_input not in ("n", "no")
-    clamav_cmd = "clamdscan"  # Use daemon for better performance
-
-    # Prompt for LED indicator configuration
-    use_led_input = input(
-        "Enable RGB LED status indicator (y/N)? "
-    ).strip().lower()
-    use_led = use_led_input in ("y", "yes")
-    led_pins = {"red": 17, "green": 27, "blue": 22}
-    if use_led:
-        print(
-            "Enter GPIO pin numbers for the RGB LED. Use BCM numbering.\n"
-            "Press Enter to accept defaults (Red=17, Green=27, Blue=22)."
-        )
-        while True:
-            try:
-                red_pin_str = input("Red pin [17]: ").strip()
-                green_pin_str = input("Green pin [27]: ").strip()
-                blue_pin_str = input("Blue pin [22]: ").strip()
-
-                # Validate and assign pins
-                if red_pin_str:
-                    red_pin = int(red_pin_str)
-                    if not (2 <= red_pin <= 27):
-                        print("GPIO pin must be between 2 and 27.")
-                        continue
-                    led_pins["red"] = red_pin
-
-                if green_pin_str:
-                    green_pin = int(green_pin_str)
-                    if not (2 <= green_pin <= 27):
-                        print("GPIO pin must be between 2 and 27.")
-                        continue
-                    led_pins["green"] = green_pin
-
-                if blue_pin_str:
-                    blue_pin = int(blue_pin_str)
-                    if not (2 <= blue_pin <= 27):
-                        print("GPIO pin must be between 2 and 27.")
-                        continue
-                    led_pins["blue"] = blue_pin
-
-                # Check for duplicate pins
-                pins_list = list(led_pins.values())
-                if len(pins_list) != len(set(pins_list)):
-                    print("Error: Duplicate GPIO pins specified. Please use different pins.")
+            
+            # Validate key length
+            if len(api_key) != 64:
+                print(f"   ⚠️  Warning: VirusTotal API keys are typically 64 characters (got {len(api_key)})")
+                if not prompt_yes_no("Continue with this key anyway", default=False):
                     continue
-
-                break
-            except ValueError:
-                print("Invalid pin number. Please enter integers only.")
-
-    # SIEM integration configuration
-    print("\n--- SIEM Integration (Optional) ---")
-    print("Send scan events and results to your Security Information and Event Management system")
-    use_siem_input = input("Enable SIEM integration (y/N)? ").strip().lower()
-    use_siem = use_siem_input in ("y", "yes")
-
-    siem_type = "syslog"
-    siem_server = ""
-    siem_port = 514
-    siem_facility = "local0"
-    siem_webhook_url = ""
-    siem_headers = {}
-
-    if use_siem:
-        print("\nSIEM Integration Types:")
-        print("1. Syslog (RFC 5424) - Most common, works with Splunk, ELK, QRadar, etc.")
-        print("2. HTTP/Webhook - JSON POST to custom endpoints")
-
-        while True:
-            siem_choice = input("Choose SIEM type (1-2): ").strip()
-            if siem_choice == "1":
-                siem_type = "syslog"
-                siem_server = input("SIEM server IP/hostname (leave empty for local syslog): ").strip()
-                if siem_server:
-                    while True:
-                        try:
-                            siem_port = int(input("Syslog port [514]: ").strip() or "514")
-                            break
-                        except ValueError:
-                            print("Invalid port number.")
-                siem_facility = input("Syslog facility [local0]: ").strip() or "local0"
-                break
-            elif siem_choice == "2":
-                siem_type = "webhook"
-                while True:
-                    siem_webhook_url = input("Webhook URL (https://your-siem.com/webhook): ").strip()
-                    if not siem_webhook_url:
-                        print("Webhook URL is required for HTTP integration.")
-                        continue
-
-                    # Validate URL for SSRF prevention
-                    if not validate_webhook_url(siem_webhook_url):
-                        print("Please provide a valid HTTPS webhook URL to a trusted external service.")
-                        continue
-
-                    break
-
-                # Optional headers
-                auth_header = input("Authorization header (optional): ").strip()
-                if auth_header:
-                    siem_headers["Authorization"] = auth_header
-                break
-            else:
-                print("Invalid choice. Please enter 1 or 2.")
-
-    # Ask whether to enable the graphical interface
-    use_gui_input = input(
-        "Enable ArgusPi graphical touchscreen interface (Y/n)? "
-    ).strip().lower()
-    # Default is yes if the user presses enter
-    use_gui = use_gui_input not in ("n", "no")
-
-    # GUI display mode configuration
-    gui_simple_mode = False
-    display_rotation = 0
-    if use_gui:
-        print("\n--- GUI Display Configuration ---")
-        print("Choose display mode for the touchscreen interface:")
-        print("• Simple Mode: Progress bar, timer, and clear status messages - ideal for general users")
-        print("• Detailed Mode: Technical log output and detailed information - ideal for IT professionals")
-        print()
-        mode_input = input("Use simple user-friendly display mode? (Y/n): ").strip().lower()
-        gui_simple_mode = mode_input not in ("n", "no")
-
-        # Screen orientation configuration
-        print("\n--- Screen Orientation ---")
-        print("Configure display rotation for your touchscreen:")
-        print("0 = Normal (0°)")
-        print("1 = 90° clockwise")
-        print("2 = 180° (upside down)")
-        print("3 = 270° clockwise (90° counter-clockwise)")
-        print()
-        while True:
-            rotation_input = input("Select screen rotation [0]: ").strip()
-            if not rotation_input:
-                display_rotation = 0
-                break
-            try:
-                display_rotation = int(rotation_input)
-                if display_rotation in [0, 1, 2, 3]:
+            
+            # Test API key if it's new or changed
+            if api_key != existing_config.get("api_key"):
+                print("   🔄 Testing API key...")
+                if validate_virustotal_api_key(api_key):
+                    print("   ✓ API key is valid")
+                    config["api_key"] = api_key
                     break
                 else:
-                    print("Invalid rotation. Please enter 0, 1, 2, or 3.")
-            except ValueError:
-                print("Invalid input. Please enter a number (0-3).")
-
-    # Screensaver configuration for GUI
-    screensaver_timeout = 300  # Default 5 minutes
-    if use_gui:
-        print("\n--- Screensaver Configuration ---")
-        print("Screensaver helps protect the display during idle periods")
-        screensaver_input = input("Enable screensaver (Y/n)? ").strip().lower()
-        use_screensaver = screensaver_input not in ("n", "no")
-
-        if use_screensaver:
-            while True:
-                timeout_str = input("Screensaver timeout in minutes [5]: ").strip()
-                try:
-                    screensaver_timeout = int(timeout_str) if timeout_str else 5
-                    if screensaver_timeout < 1:
-                        print("Timeout must be at least 1 minute.")
+                    print("   ❌ API key is invalid or expired")
+                    continue
+            else:
+                config["api_key"] = api_key
+                print("   ✓ Using existing API key")
+                break
+        
+        # Request interval
+        while True:
+            try:
+                interval_str = prompt_with_default(
+                    "Seconds between VirusTotal requests (free tier: 20+)",
+                    existing_config.get("request_interval", 20)
+                )
+                request_interval = int(interval_str)
+                
+                if request_interval < 1:
+                    print("   ❌ Request interval must be at least 1 second")
+                    continue
+                
+                if request_interval < 15:
+                    print("   ⚠️  Warning: Intervals < 15 seconds may exceed free tier limits")
+                    if not prompt_yes_no("Continue with this interval", default=False):
                         continue
-                    break
-                except ValueError:
-                    print("Invalid timeout; please enter a number.")
+                
+                config["request_interval"] = request_interval
+                print(f"   ✓ Request interval: {request_interval} seconds\n")
+                break
+                
+            except ValueError:
+                print("   ❌ Please enter a valid number")
     else:
-        use_screensaver = False
-    return {
-        "station_name": station_name,
-        "api_key": api_key,
-        "mount_base": mount_base,
-        "request_interval": request_interval,
-        "use_clamav": use_clamav,
-        "clamav_cmd": clamav_cmd,
-        "clamav_timeout": 60,  # ClamAV scan timeout in seconds
-        "clamav_socket": "/var/run/clamav/clamd.ctl",  # ClamAV daemon socket
-        "use_led": use_led,
-        "led_pins": led_pins,
-        "use_gui": use_gui,
-        "gui_simple_mode": gui_simple_mode if use_gui else False,
-        "display_rotation": display_rotation if use_gui else 0,
-        "use_screensaver": use_screensaver if use_gui else False,
-        "screensaver_timeout": screensaver_timeout * 60,  # Convert to seconds
-        "siem_enabled": use_siem,
-        "siem_type": siem_type,
-        "siem_server": siem_server,
-        "siem_port": siem_port,
-        "siem_facility": siem_facility,
-        "siem_webhook_url": siem_webhook_url,
-        "siem_headers": siem_headers,
-    }
+        print("   ✓ Running in offline mode (local scanning only)\n")
+        config["api_key"] = ""
+        config["request_interval"] = 1  # Not used in offline mode
+    
+    # Local scanning configuration  
+    print("┌─ 🛡️  Local Security Scanning " + "─" * 44)
+    print("│ ClamAV provides local malware detection")
+    print("└" + "─" * 70)
+    
+    config["use_clamav"] = prompt_yes_no(
+        "Enable local ClamAV scanning",
+        existing_config.get("use_clamav", True)
+    )
+    config["clamav_cmd"] = existing_config.get("clamav_cmd", "clamdscan")
+    print(f"   ✓ ClamAV: {'Enabled' if config['use_clamav'] else 'Disabled'}\n")
+
+    # File system configuration
+    print("┌─ 💾 File System Configuration " + "─" * 42)
+    print("│ Mount point and logging settings")
+    print("└" + "─" * 70)
+    
+    while True:
+        mount_base = prompt_with_default(
+            "USB mount base directory",
+            existing_config.get("mount_base", "/mnt/arguspi")
+        )
+        
+        if os.path.isabs(mount_base):
+            config["mount_base"] = mount_base
+            break
+        else:
+            print("   ❌ Mount path must be absolute (start with /)")
+    
+    config["log_path"] = existing_config.get("log_path", "/var/log/arguspi.log")
+    print(f"   ✓ Mount base: {config['mount_base']}")
+    print(f"   ✓ Log file: {config['log_path']}\n")
+
+    # GUI Configuration
+    print("┌─ 🖥️  User Interface " + "─" * 52)
+    print("│ Graphical user interface settings")  
+    print("└" + "─" * 70)
+    
+    config["use_gui"] = prompt_yes_no(
+        "Enable graphical user interface",
+        existing_config.get("use_gui", True)
+    )
+    
+    if config["use_gui"]:
+        config["gui_simple_mode"] = prompt_yes_no(
+            "Use simplified GUI mode (recommended for end users)",
+            existing_config.get("gui_simple_mode", False)
+        )
+        
+        # Display rotation
+        rotation_options = {0: "Normal (0°)", 1: "90° clockwise", 2: "180°", 3: "270° clockwise"}
+        current_rotation = existing_config.get("display_rotation", 0)
+        
+        print(f"   Current display rotation: {rotation_options[current_rotation]}")
+        print("   Rotation options: 0=Normal, 1=90°, 2=180°, 3=270°")
+        
+        while True:
+            try:
+                rotation_str = prompt_with_default("Display rotation", current_rotation)
+                rotation = int(rotation_str)
+                if rotation in rotation_options:
+                    config["display_rotation"] = rotation
+                    
+                    # Offer to test the rotation if not default
+                    if rotation != 0:
+                        test_rotation = prompt_yes_no(
+                            f"Test {rotation * 90}° rotation now (10 second preview)",
+                            False
+                        )
+                        if test_rotation:
+                            test_display_rotation(rotation)
+                    
+                    break
+                else:
+                    print("   ❌ Rotation must be 0, 1, 2, or 3")
+            except ValueError:
+                print("   ❌ Please enter a valid number")
+        
+        print(f"   ✓ GUI: Enabled ({'Simple' if config['gui_simple_mode'] else 'Detailed'} mode)")
+        print(f"   ✓ Display: {rotation_options[config['display_rotation']]}\n")
+    else:
+        config["gui_simple_mode"] = False
+        config["display_rotation"] = 0
+        print("   ✓ GUI: Disabled (headless mode)\n")
+
+    # Hardware Configuration
+    print("┌─ ⚡ Hardware Features " + "─" * 48)
+    print("│ LED indicators and other hardware")
+    print("└" + "─" * 70)
+    
+    config["use_led"] = prompt_yes_no(
+        "Enable RGB LED status indicator",
+        existing_config.get("use_led", False)
+    )
+    
+    if config["use_led"]:
+        print("   GPIO pin configuration (BCM numbering):")
+        led_pins = existing_config.get("led_pins", {"red": 17, "green": 27, "blue": 22})
+        
+        for color in ["red", "green", "blue"]:
+            while True:
+                try:
+                    pin_str = prompt_with_default(f"   {color.capitalize()} LED GPIO pin", led_pins[color])
+                    pin = int(pin_str)
+                    if 0 <= pin <= 40:
+                        led_pins[color] = pin
+                        break
+                    else:
+                        print("   ❌ GPIO pin must be between 0 and 40")
+                except ValueError:
+                    print("   ❌ Please enter a valid pin number")
+        
+        config["led_pins"] = led_pins
+        print(f"   ✓ LED: Enabled (R:{led_pins['red']}, G:{led_pins['green']}, B:{led_pins['blue']})\n")
+    else:
+        config["led_pins"] = existing_config.get("led_pins", {"red": 17, "green": 27, "blue": 22})
+        print("   ✓ LED: Disabled\n")
+
+    # SIEM Integration  
+    print("┌─ 📊 SIEM Integration " + "─" * 50)
+    print("│ Security Information and Event Management")
+    print("└" + "─" * 70)
+    
+    config["siem_enabled"] = prompt_yes_no(
+        "Enable SIEM webhook notifications",
+        existing_config.get("siem_enabled", False)
+    )
+    
+    if config["siem_enabled"]:
+        while True:
+            webhook_url = prompt_with_default(
+                "SIEM webhook URL (HTTPS required)",
+                existing_config.get("siem_webhook_url", "")
+            )
+            
+            if not webhook_url:
+                print("   ❌ Webhook URL is required when SIEM is enabled")
+                continue
+                
+            if validate_webhook_url(webhook_url):
+                config["siem_webhook_url"] = webhook_url
+                print("   ✓ SIEM webhook URL validated")
+                break
+            else:
+                print("   ❌ Invalid webhook URL")
+        print(f"   ✓ SIEM: Enabled\n")
+    else:
+        config["siem_webhook_url"] = existing_config.get("siem_webhook_url", "")
+        print("   ✓ SIEM: Disabled\n")
+
+    # Configuration summary
+    print("┌─ 📋 Configuration Summary " + "─" * 45)
+    print(f"│ Station: {config['station_name']}")
+    print(f"│ VirusTotal: {'Enabled' if config['api_key'] else 'Disabled (offline mode)'}")
+    print(f"│ ClamAV: {'Enabled' if config['use_clamav'] else 'Disabled'}")
+    print(f"│ GUI: {'Enabled' if config['use_gui'] else 'Disabled'}")
+    print(f"│ LED: {'Enabled' if config['use_led'] else 'Disabled'}")
+    print(f"│ SIEM: {'Enabled' if config['siem_enabled'] else 'Disabled'}")
+    print("└" + "─" * 70)
+    
+    if not prompt_yes_no("\nSave this configuration and continue with setup", default=True):
+        print("\n❌ Setup cancelled by user.")
+        sys.exit(0)
+    
+    print("\n✅ Configuration saved! Proceeding with installation...\n")
+    return config
 
 
 def write_config(config: dict) -> None:
@@ -1325,9 +1396,9 @@ def verify_clamav_installation() -> None:
         print("  💡 Recommendation: Run the troubleshooting steps in TROUBLESHOOTING.md")
 
 
-def configure_display_rotation(rotation: int) -> bool:
+def configure_cmdline_rotation(rotation: int) -> bool:
     """
-    Configure display rotation in /boot/config.txt.
+    Configure display rotation in /boot/firmware/cmdline.txt using video parameter.
     
     Args:
         rotation: Display rotation (0=0°, 1=90°, 2=180°, 3=270°)
@@ -1335,12 +1406,126 @@ def configure_display_rotation(rotation: int) -> bool:
     Returns:
         bool: True if successful, False otherwise
     """
-    config_path = "/boot/config.txt"
+    if rotation == 0:
+        return True  # No rotation needed
+        
+    # Try modern Pi OS location first
+    cmdline_path = "/boot/firmware/cmdline.txt"
+    if not os.path.exists(cmdline_path):
+        # Fallback to legacy location
+        cmdline_path = "/boot/cmdline.txt"
+        if not os.path.exists(cmdline_path):
+            return False
+    
+    try:
+        # Read current cmdline.txt
+        with open(cmdline_path, 'r') as f:
+            cmdline = f.read().strip()
+        
+        # Remove any existing rotation parameters
+        words = cmdline.split()
+        words = [word for word in words if not word.startswith('video=DSI-1:') and not word.startswith('display_rotate=')]
+        
+        # Add new rotation parameter
+        rotation_degrees = rotation * 90
+        video_param = f"video=DSI-1:720x1280@60,rotate={rotation_degrees}"
+        words.append(video_param)
+        
+        # Write back to cmdline.txt
+        new_cmdline = " ".join(words)
+        with open(cmdline_path, 'w') as f:
+            f.write(new_cmdline + "\n")
+            
+        return True
+        
+    except Exception as e:
+        print(f"⚠ Failed to configure cmdline rotation: {e}")
+        return False
+
+
+def test_display_rotation(rotation: int) -> None:
+    """Test display rotation with immediate feedback."""
+    print(f"\n🔄 Testing display rotation: {rotation * 90}°")
+    
+    try:
+        import subprocess
+        import time
+        
+        # Try wlr-randr first (modern Wayland)
+        result = subprocess.run(["which", "wlr-randr"], capture_output=True, text=True, timeout=3)
+        if result.returncode == 0:
+            print("✓ Found wlr-randr (Wayland)")
+            
+            # Get outputs and try rotation
+            result = subprocess.run(["wlr-randr"], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                outputs = [line.split()[0] for line in result.stdout.strip().split('\n') 
+                          if line and not line.startswith(' ')]
+                
+                for output in outputs[:1]:  # Try first output
+                    if output:
+                        cmd = ["wlr-randr", "--output", output, "--transform", str(rotation * 90)]
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                        
+                        if result.returncode == 0:
+                            print(f"✓ Applied test rotation to {output}")
+                            print("  ⏱  Rotation will revert in 10 seconds...")
+                            time.sleep(10)
+                            
+                            # Revert to normal
+                            cmd = ["wlr-randr", "--output", output, "--transform", "normal"]
+                            subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                            print("✓ Reverted to normal orientation")
+                            return
+        
+        # Try xrandr (X11)
+        result = subprocess.run(["which", "xrandr"], capture_output=True, text=True, timeout=3)
+        if result.returncode == 0:
+            print("✓ Found xrandr (X11)")
+            
+            rotations = {0: "normal", 1: "left", 2: "inverted", 3: "right"}
+            xrandr_rot = rotations[rotation]
+            
+            for output in ["DSI-1", "HDMI-1", "HDMI-A-1"]:
+                cmd = ["xrandr", "--output", output, "--rotate", xrandr_rot]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                
+                if result.returncode == 0:
+                    print(f"✓ Applied test rotation to {output}")
+                    print("  ⏱  Rotation will revert in 10 seconds...")
+                    time.sleep(10)
+                    
+                    # Revert to normal
+                    cmd = ["xrandr", "--output", output, "--rotate", "normal"]
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                    print("✓ Reverted to normal orientation")
+                    return
+        
+        print("⚠ No rotation tools available for testing")
+        print("  Configuration will be saved but requires reboot to take effect")
+        
+    except Exception as e:
+        print(f"⚠ Rotation test failed: {e}")
+
+
+def configure_display_rotation(rotation: int) -> bool:
+    """
+    Configure display rotation in /boot/firmware/config.txt (modern Pi OS) or /boot/config.txt (legacy).
+    
+    Args:
+        rotation: Display rotation (0=0°, 1=90°, 2=180°, 3=270°)
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    # Try modern Pi OS location first
+    config_path = "/boot/firmware/config.txt"
     if not os.path.exists(config_path):
-        # Try alternate path for newer Pi OS versions
-        config_path = "/boot/firmware/config.txt"
+        # Fallback to legacy location for older Pi OS versions
+        config_path = "/boot/config.txt"
         if not os.path.exists(config_path):
-            print(f"⚠ Could not find config.txt at /boot/config.txt or /boot/firmware/config.txt")
+            print(f"⚠ Could not find config.txt at /boot/firmware/config.txt or /boot/config.txt")
+            return False
             return False
     
     try:
@@ -1436,22 +1621,33 @@ def main() -> None:
         # Configure display rotation
         print("\n--- Display Configuration ---")
         display_rotation = config.get("display_rotation", 0)
-        if configure_display_rotation(display_rotation):
-            if display_rotation != 0:
+        if display_rotation != 0:
+            print(f"Configuring {display_rotation * 90}° rotation...")
+            
+            # Try multiple configuration methods
+            config_success = configure_display_rotation(display_rotation)
+            cmdline_success = configure_cmdline_rotation(display_rotation)
+            
+            if config_success or cmdline_success:
                 print("✓ Display rotation configured")
+                print("📋 Configured methods:")
+                if config_success:
+                    print("  • config.txt rotation setting")
+                if cmdline_success:
+                    print("  • cmdline.txt boot parameter")
+                print("🔄 Reboot required for rotation to take effect")
             else:
-                print("✓ Display rotation: Normal (no rotation needed)")
+                print("⚠ Automatic rotation configuration failed")
+                print("📖 Manual configuration required:")
+                print(f"  Add to /boot/firmware/cmdline.txt: video=DSI-1:720x1280@60,rotate={display_rotation * 90}")
+                print(f"  Or add to /boot/firmware/config.txt: display_rotate={display_rotation}")
         else:
-            print("⚠ Display rotation configuration failed")
-            print("  You can manually add 'display_rotate={display_rotation}' to /boot/config.txt")
+            print("✓ Display rotation: Normal (0°)")
     else:
-        # For non-GUI mode, just mention the service exists but don't enable it
-        print("\n--- Background Service ---")
-        print("✓ SystemD service created but not enabled (GUI disabled)")
-        print("  Enable manually if needed: sudo systemctl enable arguspi")
+        # For non-GUI mode
+        print("✓ GUI disabled - running in headless mode")
     
-    # Remove the duplicate create_systemd_service call and the disable logic
-    # since we now properly configure the service based on GUI mode
+    print("\n--- Final Steps ---")
     
     # Create mount base directory
     os.makedirs(config["mount_base"], exist_ok=True)
