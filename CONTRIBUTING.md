@@ -169,6 +169,5 @@ By contributing to ArgusPi, you agree that your contributions will be licensed u
 
 - Create a GitHub Discussion for general questions
 - Use GitHub Issues for bug reports and feature requests
-- Email security concerns privately to security@yourproject.com
 
 Thank you for helping make ArgusPi better! 🛡️
