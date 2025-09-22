@@ -87,17 +87,17 @@ After reboot:
 
 During setup, you can configure:
 
-| Option                 | Description                           | Default           | Performance Impact     |
-| ---------------------- | ------------------------------------- | ----------------- | ---------------------- |
-| **Station Name**       | Unique identifier for this station    | `arguspi-station` | SIEM event correlation |
-| **API Key**            | VirusTotal API key for cloud scanning | _Optional_        | Enables cloud analysis |
-| **Mount Path**         | Directory for mounting USB devices    | `/mnt/arguspi`    | N/A                    |
-| **Request Interval**   | Seconds between VirusTotal requests   | `20` (free tier)  | 4 requests/min max     |
-| **ClamAV Integration** | Enable local antivirus scanning       | `Yes`             | **🚀 HUGE speedup!**   |
-| **SIEM Integration**   | Send events to security monitoring    | `No`              | Enterprise visibility  |
-| **RGB LED**            | GPIO pins for status LED              | `17,27,22`        | N/A                    |
-| **GUI Interface**      | Enable touchscreen interface          | `Yes`             | N/A                    |
-| **Screen Orientation** | Display rotation (0°, 90°, 180°, 270°) | `0°` (Normal)    | Touchscreen layout     |
+| Option                 | Description                            | Default           | Performance Impact     |
+| ---------------------- | -------------------------------------- | ----------------- | ---------------------- |
+| **Station Name**       | Unique identifier for this station     | `arguspi-station` | SIEM event correlation |
+| **API Key**            | VirusTotal API key for cloud scanning  | _Optional_        | Enables cloud analysis |
+| **Mount Path**         | Directory for mounting USB devices     | `/mnt/arguspi`    | N/A                    |
+| **Request Interval**   | Seconds between VirusTotal requests    | `20` (free tier)  | 4 requests/min max     |
+| **ClamAV Integration** | Enable local antivirus scanning        | `Yes`             | **🚀 HUGE speedup!**   |
+| **SIEM Integration**   | Send events to security monitoring     | `No`              | Enterprise visibility  |
+| **RGB LED**            | GPIO pins for status LED               | `17,27,22`        | N/A                    |
+| **GUI Interface**      | Enable touchscreen interface           | `Yes`             | N/A                    |
+| **Screen Orientation** | Display rotation (0°, 90°, 180°, 270°) | `0°` (Normal)     | Touchscreen layout     |
 
 > **💡 Pro Tip**: For best results, enable ClamAV! It provides fast local scanning whether you're online or offline.
 

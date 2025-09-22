@@ -194,9 +194,25 @@ class ArgusPiGUI:
         self.scan_progress = {"current": 0, "total": 0}
         self.current_action = "Waiting for USB device…"
         
+        # Diagnostic information for GUI startup issues
+        print("🖥️ GUI Startup Diagnostics:")
+        display = os.environ.get('DISPLAY', 'Not set')
+        xauth = os.environ.get('XAUTHORITY', 'Not set')
+        xdg_runtime = os.environ.get('XDG_RUNTIME_DIR', 'Not set')
+        session_type = os.environ.get('XDG_SESSION_TYPE', 'Not set')
+        print(f"  DISPLAY: {display}")
+        print(f"  XAUTHORITY: {xauth}")  
+        print(f"  XDG_RUNTIME_DIR: {xdg_runtime}")
+        print(f"  XDG_SESSION_TYPE: {session_type}")
+        
         # Create root window
-        self.root = tk.Tk()
-        self.root.title("ArgusPi USB Security Scanner")
+        try:
+            self.root = tk.Tk()
+            self.root.title("ArgusPi USB Security Scanner")
+            print("✓ Tkinter window created successfully")
+        except Exception as e:
+            print(f"✗ Failed to create Tkinter window: {e}")
+            raise
         
         # Configure fullscreen display for kiosk mode
         try:
