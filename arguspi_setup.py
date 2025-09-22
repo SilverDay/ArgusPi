@@ -735,7 +735,7 @@ def prompt_configuration() -> dict:
         "Enable local ClamAV scan before VirusTotal (Y/n)? "
     ).strip().lower()
     use_clamav = use_clamav_input not in ("n", "no")
-    clamav_cmd = "clamscan"
+    clamav_cmd = "clamdscan"  # Use daemon for better performance
 
     # Prompt for LED indicator configuration
     use_led_input = input(
@@ -876,6 +876,8 @@ def prompt_configuration() -> dict:
         "request_interval": request_interval,
         "use_clamav": use_clamav,
         "clamav_cmd": clamav_cmd,
+        "clamav_timeout": 60,  # ClamAV scan timeout in seconds
+        "clamav_socket": "/var/run/clamav/clamd.ctl",  # ClamAV daemon socket
         "use_led": use_led,
         "led_pins": led_pins,
         "use_gui": use_gui,

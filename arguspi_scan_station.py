@@ -552,7 +552,7 @@ class ArgusPiStation:
         self.log_path: str = "/var/log/arguspi.log"
         # Local scanning with ClamAV
         self.use_clamav: bool = False
-        self.clamav_cmd: str = "clamscan"
+        self.clamav_cmd: str = "clamdscan"  # Use daemon for better performance
         # LED status indicator
         self.use_led: bool = False
         self.led_pins: Dict[str, int] = {"red": 17, "green": 27, "blue": 22}
@@ -623,7 +623,7 @@ class ArgusPiStation:
         self.mount_base = data.get("mount_base", "/mnt/arguspi")
         # load optional clamav configuration
         self.use_clamav = bool(data.get("use_clamav", False))
-        self.clamav_cmd = data.get("clamav_cmd", "clamscan")
+        self.clamav_cmd = data.get("clamav_cmd", "clamdscan")  # Default to daemon
         # LED configuration
         self.use_led = bool(data.get("use_led", False))
         pins = data.get("led_pins", None)

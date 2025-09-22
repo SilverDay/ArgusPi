@@ -102,6 +102,7 @@ sudo udevadm control --reload-rules
 **Technical Details:**
 
 The updated ArgusPi code now:
+
 1. Checks if a device is already mounted before attempting to mount it
 2. Uses existing mounts when available instead of creating conflicts
 3. Only unmounts devices that ArgusPi mounted itself
@@ -430,10 +431,12 @@ import json
 with open('/etc/arguspi/config.json', 'r') as f:
     config = json.load(f)
 config['use_clamav'] = True
+config['clamav_cmd'] = 'clamdscan'  # Use fast daemon instead of slow clamscan
 config['clamav_timeout'] = 60  # 60 seconds timeout
+config['clamav_socket'] = '/var/run/clamav/clamd.ctl'  # Daemon socket
 with open('/etc/arguspi/config.json', 'w') as f:
     json.dump(config, f, indent=2)
-print('✓ ClamAV enabled in config')
+print('✓ ClamAV enabled with fast daemon configuration')
 "
 
 # Restart ArgusPi after config change
