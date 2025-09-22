@@ -280,6 +280,19 @@ class ArgusPiGUI:
         # Define status variables
         self.status_var = tk.StringVar(value="Waiting for USB device…")
 
+        # Define color mapping BEFORE using it
+        self._color_map = {
+            "waiting": ("#0066cc", "Waiting for USB device…"),
+            "scanning": ("#ffcc00", "Scanning USB device…"),
+            "clean": ("#00cc00", "✓ Scan complete - No threats detected"),
+            "infected": ("#cc0000", "⚠ THREATS DETECTED!"),
+            "error": ("#cc0000", "✗ Error during scan"),
+            # Persistent result statuses (shown until USB device is removed)
+            "scan_clean": ("#00cc00", "✅ SUCCESS: USB device is clean - Safe to remove"),
+            "scan_infected": ("#cc0000", "🦠 INFECTED: Malware detected - Remove immediately!"),
+            "scan_error": ("#cc6600", "⚠️ ERROR: Scan failed - Check device and try again"),
+        }
+
         # Create status panel - use proper color mapping instead of hardcoded blue
         initial_color = self._get_status_color("waiting")
         self.status_frame = tk.Frame(self.root, width=400, height=120, bg=initial_color)
@@ -294,19 +307,6 @@ class ArgusPiGUI:
             bg="black",
         )
         self.status_label.pack(pady=10)
-
-        # Mapping of statuses to colours and messages
-        self._color_map = {
-            "waiting": ("#0066cc", "Waiting for USB device…"),
-            "scanning": ("#ffcc00", "Scanning USB device…"),
-            "clean": ("#00cc00", "✓ Scan complete - No threats detected"),
-            "infected": ("#cc0000", "⚠ THREATS DETECTED!"),
-            "error": ("#cc0000", "✗ Error during scan"),
-            # Persistent result statuses (shown until USB device is removed)
-            "scan_clean": ("#00cc00", "✅ SUCCESS: USB device is clean - Safe to remove"),
-            "scan_infected": ("#cc0000", "🦠 INFECTED: Malware detected - Remove immediately!"),
-            "scan_error": ("#cc6600", "⚠️ ERROR: Scan failed - Check device and try again"),
-        }
 
         # Create simple mode or detailed mode display
         if self.simple_mode:
