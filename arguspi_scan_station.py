@@ -194,25 +194,9 @@ class ArgusPiGUI:
         self.scan_progress = {"current": 0, "total": 0}
         self.current_action = "Waiting for USB device…"
         
-        # Diagnostic information for GUI startup issues
-        print("🖥️ GUI Startup Diagnostics:")
-        display = os.environ.get('DISPLAY', 'Not set')
-        xauth = os.environ.get('XAUTHORITY', 'Not set')
-        xdg_runtime = os.environ.get('XDG_RUNTIME_DIR', 'Not set')
-        session_type = os.environ.get('XDG_SESSION_TYPE', 'Not set')
-        print(f"  DISPLAY: {display}")
-        print(f"  XAUTHORITY: {xauth}")  
-        print(f"  XDG_RUNTIME_DIR: {xdg_runtime}")
-        print(f"  XDG_SESSION_TYPE: {session_type}")
-        
         # Create root window
-        try:
-            self.root = tk.Tk()
-            self.root.title("ArgusPi USB Security Scanner")
-            print("✓ Tkinter window created successfully")
-        except Exception as e:
-            print(f"✗ Failed to create Tkinter window: {e}")
-            raise
+        self.root = tk.Tk()
+        self.root.title("ArgusPi USB Security Scanner")
         
         # Configure fullscreen display for kiosk mode
         try:
@@ -279,8 +263,9 @@ class ArgusPiGUI:
 
         # Define status variables
         self.status_var = tk.StringVar(value="Waiting for USB device…")
+        self.current_status_key = "waiting"  # Track current status for screensaver restoration
 
-        # Define color mapping BEFORE using it
+        # Define color mapping BEFORE using it (FIXED: was causing AttributeError)
         self._color_map = {
             "waiting": ("#0066cc", "Waiting for USB device…"),
             "scanning": ("#ffcc00", "Scanning USB device…"),
@@ -461,6 +446,7 @@ class ArgusPiGUI:
 
     def set_status(self, status: str) -> None:
         """Update the status panel colour and label text."""
+        self.current_status_key = status  # Store current status key for screensaver restoration
         colour, message = self._color_map.get(status, ("white", status))
         # Use after() to schedule GUI updates from other threads
         def update() -> None:
@@ -557,16 +543,19 @@ class ArgusPiGUI:
         self._restore_main_interface()
 
     def _create_screensaver_elements(self) -> None:
-        """Create screensaver display elements."""
+        """Create screensaver display elements with status indication."""
         canvas = self.screensaver_canvas
 
         # Calculate initial positions
         screen_width = canvas.winfo_reqwidth()
         screen_height = canvas.winfo_reqheight()
 
+        # Get current status info
+        status_color, status_message = self._color_map.get(self.current_status_key, ("#0066cc", "Waiting for USB device…"))
+
         # Create floating ArgusPi logo
         self.logo_x = screen_width // 2
-        self.logo_y = screen_height // 2 - 50
+        self.logo_y = screen_height // 2 - 80
         self.logo_dx = random.choice([-2, -1, 1, 2])
         self.logo_dy = random.choice([-2, -1, 1, 2])
 
@@ -587,6 +576,30 @@ class ArgusPiGUI:
             anchor="center"
         )
 
+        # Create status display with current status color and message
+        self.status_x = screen_width // 2
+        self.status_y = screen_height // 2 + 40
+        self.status_bg = canvas.create_rectangle(
+            self.status_x - 250, self.status_y - 25,
+            self.status_x + 250, self.status_y + 25,
+            fill=status_color,
+            outline="white",
+            width=2
+        )
+        
+        self.status_text = canvas.create_text(
+            self.status_x, self.status_y,
+            text=status_message,
+            font=("Helvetica", 18, "bold"),
+            fill="white",
+            anchor="center"
+        )
+
+        # Add scanning animation for active scans
+        if self.current_status_key == "scanning":
+            self.scanning_dots = 0
+            self.scanning_timer = 0
+
         # Create clock
         self.clock_x = screen_width // 2
         self.clock_y = screen_height - 100
@@ -599,7 +612,7 @@ class ArgusPiGUI:
         )
 
     def _animate_screensaver(self) -> None:
-        """Animate screensaver elements."""
+        """Animate screensaver elements with status awareness."""
         if not self.screensaver_active:
             return
 
@@ -626,7 +639,31 @@ class ArgusPiGUI:
             canvas.coords(self.screensaver_logo, self.logo_x, self.logo_y)
             canvas.coords(self.subtitle_text, self.logo_x, self.logo_y + 60)
 
+            # Update status display with current status
+            status_color, status_message = self._color_map.get(self.current_status_key, ("#0066cc", "Waiting for USB device…"))
+            
+            # Add scanning animation dots if scanning
+            if self.current_status_key == "scanning":
+                if not hasattr(self, 'scanning_timer'):
+                    self.scanning_timer = 0
+                    self.scanning_dots = 0
+                
+                self.scanning_timer += 1
+                if self.scanning_timer >= 10:  # Update every ~500ms (10 * 50ms frames)
+                    self.scanning_timer = 0
+                    self.scanning_dots = (self.scanning_dots + 1) % 4
+                    dots = "." * self.scanning_dots
+                    animated_message = status_message.rstrip("…") + dots
+                    canvas.itemconfig(self.status_text, text=animated_message)
+            else:
+                # Update status text for non-scanning states
+                canvas.itemconfig(self.status_text, text=status_message)
+            
+            # Update status background color
+            canvas.itemconfig(self.status_bg, fill=status_color)
+
             # Update clock
+            from datetime import datetime
             current_time = datetime.now().strftime("%H:%M:%S")
             current_date = datetime.now().strftime("%Y-%m-%d")
             clock_display = f"{current_date}\n{current_time}"
@@ -666,9 +703,8 @@ class ArgusPiGUI:
         )
         self.subtitle_label.pack()
 
-        # Status panel - use current status color instead of hardcoded blue
-        current_status = self.status_var.get()
-        status_color = self._get_status_color(current_status)
+        # Status panel - use current status key instead of trying to parse message
+        status_color = self._get_status_color(self.current_status_key)
         self.status_frame = tk.Frame(self.root, width=400, height=120, bg=status_color)
         self.status_frame.pack(pady=20)
 
@@ -1107,6 +1143,76 @@ class ArgusPiStation:
         behaviour reduces the number of API calls and improves overall
         performance while still providing an additional detection layer.
         """
+        infected_found = False
+        error_occurred = False
+        total_files = 0
+        infected_files = 0
+        current_file = 0
+
+        # Optimization: For local-only scanning, do a bulk scan first
+        if self.use_clamav and self.api_key is None:
+            return self._scan_path_bulk_local(mount_point)
+        else:
+            return self._scan_path_individual(mount_point)
+
+    def _scan_path_bulk_local(self, mount_point: str) -> None:
+        """Optimized bulk local scanning for offline mode."""
+        self.log(f"Starting bulk ClamAV scan of {mount_point}", "INFO")
+        
+        # Count files first for progress tracking
+        total_files = 0
+        for root, dirs, files in os.walk(mount_point):
+            total_files += len(files)
+        
+        if self.gui:
+            self.gui.set_status("scanning")
+            self.gui.update_progress(0, total_files, "Scanning all files with ClamAV...")
+        
+        try:
+            # Run bulk scan on entire mount point
+            result = subprocess.run(
+                [self.clamav_cmd, "--infected", "--recursive", "--no-summary", mount_point],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=600  # 10 minute timeout for bulk scan
+            )
+            
+            infected_files = []
+            if result.stdout:
+                # Parse infected files from output
+                for line in result.stdout.strip().split('\n'):
+                    if line and 'FOUND' in line:
+                        infected_file = line.split(':')[0].strip()
+                        infected_files.append(infected_file)
+            
+            # Update final status
+            if infected_files:
+                self.log(f"ClamAV detected {len(infected_files)} infected files", "WARN")
+                for infected_file in infected_files:
+                    self.log(f"INFECTED: {infected_file}", "WARN")
+                if self.gui:
+                    self.gui.set_status("scan_infected")
+            elif result.returncode == 2:
+                self.log("ClamAV scan completed with errors", "WARN")
+                if self.gui:
+                    self.gui.set_status("scan_error")
+            else:
+                self.log(f"ClamAV scan completed - {total_files} files clean", "INFO")
+                if self.gui:
+                    self.gui.set_status("scan_clean")
+                    
+        except subprocess.TimeoutExpired:
+            self.log("ClamAV bulk scan timed out", "ERROR")
+            if self.gui:
+                self.gui.set_status("scan_error")
+        except Exception as e:
+            self.log(f"ClamAV bulk scan failed: {e}", "ERROR")
+            if self.gui:
+                self.gui.set_status("scan_error")
+
+    def _scan_path_individual(self, mount_point: str) -> None:
+        """Individual file scanning for online mode or when bulk scan not suitable."""
         infected_found = False
         error_occurred = False
         total_files = 0
