@@ -82,6 +82,8 @@ RGB LED Connections:
 - Connect touchscreen using official DSI cable
 - Secure all connections before powering on
 
+> **💡 Screen Orientation**: During setup, ArgusPi will ask for your preferred screen orientation (0°, 90°, 180°, or 270°) and automatically configure `/boot/config.txt` with the appropriate `display_rotate` setting.
+
 ### 2. **Storage Preparation**
 
 - Use Raspberry Pi Imager to flash **Raspberry Pi OS Desktop (64-bit)**

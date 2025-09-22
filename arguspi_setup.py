@@ -850,6 +850,7 @@ def prompt_configuration() -> dict:
 
     # GUI display mode configuration
     gui_simple_mode = False
+    display_rotation = 0
     if use_gui:
         print("\n--- GUI Display Configuration ---")
         print("Choose display mode for the touchscreen interface:")
@@ -858,6 +859,28 @@ def prompt_configuration() -> dict:
         print()
         mode_input = input("Use simple user-friendly display mode? (Y/n): ").strip().lower()
         gui_simple_mode = mode_input not in ("n", "no")
+
+        # Screen orientation configuration
+        print("\n--- Screen Orientation ---")
+        print("Configure display rotation for your touchscreen:")
+        print("0 = Normal (0°)")
+        print("1 = 90° clockwise")
+        print("2 = 180° (upside down)")
+        print("3 = 270° clockwise (90° counter-clockwise)")
+        print()
+        while True:
+            rotation_input = input("Select screen rotation [0]: ").strip()
+            if not rotation_input:
+                display_rotation = 0
+                break
+            try:
+                display_rotation = int(rotation_input)
+                if display_rotation in [0, 1, 2, 3]:
+                    break
+                else:
+                    print("Invalid rotation. Please enter 0, 1, 2, or 3.")
+            except ValueError:
+                print("Invalid input. Please enter a number (0-3).")
 
     # Screensaver configuration for GUI
     screensaver_timeout = 300  # Default 5 minutes
@@ -893,6 +916,7 @@ def prompt_configuration() -> dict:
         "led_pins": led_pins,
         "use_gui": use_gui,
         "gui_simple_mode": gui_simple_mode if use_gui else False,
+        "display_rotation": display_rotation if use_gui else 0,
         "use_screensaver": use_screensaver if use_gui else False,
         "screensaver_timeout": screensaver_timeout * 60,  # Convert to seconds
         "siem_enabled": use_siem,
@@ -1243,6 +1267,58 @@ def verify_clamav_installation() -> None:
         print("  💡 Recommendation: Run the troubleshooting steps in TROUBLESHOOTING.md")
 
 
+def configure_display_rotation(rotation: int) -> bool:
+    """
+    Configure display rotation in /boot/config.txt.
+    
+    Args:
+        rotation: Display rotation (0=0°, 1=90°, 2=180°, 3=270°)
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    config_path = "/boot/config.txt"
+    if not os.path.exists(config_path):
+        # Try alternate path for newer Pi OS versions
+        config_path = "/boot/firmware/config.txt"
+        if not os.path.exists(config_path):
+            print(f"⚠ Could not find config.txt at /boot/config.txt or /boot/firmware/config.txt")
+            return False
+    
+    try:
+        # Read current config.txt
+        with open(config_path, 'r') as f:
+            lines = f.readlines()
+        
+        # Remove any existing display_rotate lines
+        lines = [line for line in lines if not line.strip().startswith('display_rotate=')]
+        
+        # Add new display_rotate setting if not default
+        if rotation != 0:
+            lines.append(f"display_rotate={rotation}\n")
+        
+        # Write back to config.txt
+        with open(config_path, 'w') as f:
+            f.writelines(lines)
+        
+        rotation_names = {0: "Normal (0°)", 1: "90° clockwise", 2: "180°", 3: "270° clockwise"}
+        print(f"✓ Display rotation set to: {rotation_names.get(rotation, f'{rotation}°')}")
+        print(f"  Configuration updated in: {config_path}")
+        
+        if rotation != 0:
+            print("  📱 Changes will take effect after reboot")
+        
+        return True
+        
+    except PermissionError:
+        print(f"✗ Permission denied accessing {config_path}")
+        print("  This script must be run with sudo to modify boot configuration")
+        return False
+    except Exception as e:
+        print(f"✗ Failed to configure display rotation: {e}")
+        return False
+
+
 def main() -> None:
     """Main setup function for ArgusPi USB security scanner."""
     print("=" * 50)
@@ -1298,6 +1374,18 @@ def main() -> None:
         else:
             print("⚠ GUI configuration failed")
             print("  See troubleshooting output above for manual steps")
+            
+        # Configure display rotation
+        print("\n--- Display Configuration ---")
+        display_rotation = config.get("display_rotation", 0)
+        if configure_display_rotation(display_rotation):
+            if display_rotation != 0:
+                print("✓ Display rotation configured")
+            else:
+                print("✓ Display rotation: Normal (no rotation needed)")
+        else:
+            print("⚠ Display rotation configuration failed")
+            print("  You can manually add 'display_rotate={display_rotation}' to /boot/config.txt")
     else:
         # For non-GUI mode, just mention the service exists but don't enable it
         print("\n--- Background Service ---")
