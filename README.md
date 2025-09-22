@@ -57,8 +57,9 @@ sudo reboot
 ```
 
 That's it! The setup script now includes:
+
 - ✅ System package updates and installation
-- ✅ Python dependencies and X11 utilities  
+- ✅ Python dependencies and X11 utilities
 - ✅ ClamAV installation and database updates
 - ✅ GUI diagnostic tool deployment
 - ✅ Proper systemd service configuration with timing fixes
@@ -85,11 +86,13 @@ ArgusPi will start automatically after reboot. Insert a USB device to test scann
 If the GUI doesn't start after reboot, this is usually due to systemd service timing issues:
 
 1. **Run diagnostics**:
+
    ```bash
    python3 /usr/local/bin/gui_diagnostic.py
    ```
 
 2. **Check service status**:
+
    ```bash
    sudo systemctl status arguspi.service
    sudo journalctl -u arguspi.service -f
@@ -104,6 +107,7 @@ If the GUI doesn't start after reboot, this is usually due to systemd service ti
 ### Common Issues
 
 #### Display Configuration
+
 - **Issue**: Screen appears upside down
 - **Solution**: Config file moved to `/boot/firmware/config.txt` on newer Pi OS
   ```bash
@@ -112,11 +116,13 @@ If the GUI doesn't start after reboot, this is usually due to systemd service ti
   ```
 
 #### Service Environment Issues
+
 - **Issue**: "No display name and no $DISPLAY environment variable"
 - **Cause**: Service starting before desktop session
 - **Solution**: The `fix_gui_service.sh` script adds proper timing dependencies
 
-#### X11 Permission Errors  
+#### X11 Permission Errors
+
 - **Issue**: "X11 server not accessible"
 - **Cause**: Root service can't access user's X11 session
 - **Solution**: Fix script configures xhost permissions automatically
@@ -137,9 +143,10 @@ sudo python3 arguspi_setup.py
 ```
 
 This **single command** includes:
+
 - System package updates (`apt update && apt upgrade`)
 - All required package installation (Python, X11, ClamAV, etc.)
-- ClamAV database updates  
+- ClamAV database updates
 - GUI diagnostic tool deployment
 - Proper systemd service with timing fixes
 - Display configuration

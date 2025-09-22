@@ -1144,6 +1144,8 @@ def create_systemd_service(config: dict) -> None:
     # Get user info for GUI environment if GUI is enabled
     if config.get("use_gui", True):
         username, uid, gid, homedir = get_desktop_user()
+        
+        # Create a robust service that works with both old (Xorg) and new (Wayland/labwc) systems
         service_content = f"""[Unit]
 Description=ArgusPi USB Security Scanner with GUI
 After=graphical-session.target
@@ -1156,21 +1158,21 @@ Wants=display-manager.service
 Type=simple
 User=root
 Group=root
-# Wait for X11 to be available
-ExecStartPre=/bin/bash -c 'while ! pgrep -x "Xorg\\|X" > /dev/null; do sleep 1; done'
-# Wait for desktop session to start
-ExecStartPre=/bin/bash -c 'while ! pgrep -f "lxsession\\|gnome-session\\|xfce4-session" > /dev/null; do sleep 1; done'
+# Robust wait for display server - works with Xorg, X11, labwc, and Wayland
+ExecStartPre=/bin/bash -c 'timeout=60; while [ $timeout -gt 0 ] && [ ! -S /tmp/.X11-unix/X0 ]; do sleep 1; timeout=$((timeout-1)); done'
+# Wait for desktop session to start - handles multiple desktop environments
+ExecStartPre=/bin/bash -c 'timeout=30; while [ $timeout -gt 0 ] && ! pgrep -f "lxsession|gnome-session|xfce4-session|labwc|startlxde" > /dev/null; do sleep 1; timeout=$((timeout-1)); done'
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/{uid}
 Environment=XAUTHORITY={homedir}/.Xauthority
 Environment=HOME={homedir}
-# Allow X11 forwarding from root
-ExecStartPre=/bin/bash -c 'su {username} -c "xhost +local:root" || true'
+# Allow X11 forwarding from root - works with both X11 and XWayland
+ExecStartPre=/bin/bash -c 'su {username} -c "xhost +local:root 2>/dev/null || true"'
 ExecStart=/usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
 Restart=always
 RestartSec=10
 # Give more time for desktop to be ready
-TimeoutStartSec=60
+TimeoutStartSec=120
 
 [Install]
 WantedBy=graphical.target

@@ -44,22 +44,22 @@ Wants=display-manager.service
 Type=simple
 User=root
 Group=root
-# Wait for X11 to be available
-ExecStartPre=/bin/bash -c 'while ! pgrep -x "Xorg\\|X" > /dev/null; do sleep 1; done'
-# Wait for desktop session to start
-ExecStartPre=/bin/bash -c 'while ! pgrep -f "lxsession\\|gnome-session\\|xfce4-session" > /dev/null; do sleep 1; done'
+# Robust wait for display server - works with Xorg, X11, labwc, and Wayland
+ExecStartPre=/bin/bash -c 'timeout=60; while [ \$timeout -gt 0 ] && [ ! -S /tmp/.X11-unix/X0 ]; do sleep 1; timeout=\$((timeout-1)); done'
+# Wait for desktop session to start - handles multiple desktop environments  
+ExecStartPre=/bin/bash -c 'timeout=30; while [ \$timeout -gt 0 ] && ! pgrep -f "lxsession|gnome-session|xfce4-session|labwc|startlxde" > /dev/null; do sleep 1; timeout=\$((timeout-1)); done'
 # Set GUI environment variables for X11 access
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/$USER_UID
 Environment=XAUTHORITY=$USER_HOME/.Xauthority
 Environment=HOME=$USER_HOME
-# Allow X11 forwarding from root
-ExecStartPre=/bin/bash -c 'su $DESKTOP_USER -c "xhost +local:root" || true'
+# Allow X11 forwarding from root - works with both X11 and XWayland
+ExecStartPre=/bin/bash -c 'su $DESKTOP_USER -c "xhost +local:root 2>/dev/null || true"'
 ExecStart=/usr/bin/python3 /usr/local/bin/arguspi_scan_station.py
 Restart=always
 RestartSec=10
 # Give more time for desktop to be ready
-TimeoutStartSec=60
+TimeoutStartSec=120
 
 [Install]
 WantedBy=graphical.target
