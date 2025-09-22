@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 ArgusPi USB Scan Station - Automated USB malware scanning service for Raspberry Pi
 
@@ -93,9 +93,9 @@ import hashlib
 import socket
 import logging
 import logging.handlers
-import time
 import tkinter as tk
-import tkinter.ttk as ttk
+from tkinter import ttk
+import time
 import random
 from datetime import datetime
 from threading import Thread, Lock
@@ -189,43 +189,43 @@ class ArgusPiGUI:
         # Store display mode and rotation
         self.simple_mode = simple_mode
         self.display_rotation = display_rotation
-        
+
         # Initialize scan progress tracking
         self.scan_start_time = None
         self.scan_progress = {"current": 0, "total": 0}
-        self.current_action = "Waiting for USB device…"
-        
+        self.current_action = "Waiting for USB deviceâ€¦"
+
         # File progress tracking
         self.files_scanned = 0
         self.total_files = 0
-        
+
         # Create root window
         self.root = tk.Tk()
         self.root.title("ArgusPi USB Security Scanner")
-        
+
         # Apply rotation logic - this affects the window geometry
         self._apply_display_rotation()
-        
+
         # Handle DPI scaling issues
         self._configure_dpi_scaling()
-        
+
         # Configure fullscreen display for kiosk mode
         try:
             # Simple one-time fullscreen setup - don't fight the window manager
             self.root.update_idletasks()
-            
+
             # Set basic fullscreen without aggressive geometry enforcement
             self.root.attributes("-fullscreen", True)
             self.root.configure(bg="black")
-            
+
             # Force focus to prevent dialogs from stealing focus
             self.root.focus_force()
             self.root.grab_set()  # Grab all events to prevent other windows from appearing
-            
-            print("✓ GUI running in fullscreen mode with focus lock")
-            
+
+            print("âœ“ GUI running in fullscreen mode with focus lock")
+
         except tk.TclError as e:
-            print(f"⚠ Fullscreen mode failed ({e}), using maximized window")
+            print(f"âš  Fullscreen mode failed ({e}), using maximized window")
             # Fallback to maximized window
             try:
                 self.root.state('zoomed')  # Windows maximize
@@ -236,9 +236,9 @@ class ArgusPiGUI:
                     self.root.focus_force()
                 except tk.TclError:
                     # Final fallback - just use whatever size we get
-                    print("⚠ Using default window size")
+                    print("âš  Using default window size")
         except Exception as e:
-            print(f"⚠ Display configuration failed ({e}), using default size")
+            print(f"âš  Display configuration failed ({e}), using default size")
 
         # Configure root window
         self.root.configure(bg="black")
@@ -254,7 +254,7 @@ class ArgusPiGUI:
         self.root.bind('<Button>', self._on_activity)
         self.root.bind('<Key>', self._on_activity)
         self.root.focus_set()  # Enable key events
-        
+
         # DISABLED: Aggressive window resize monitoring that causes infinite loops
         # self.root.bind('<Configure>', self._on_window_configure)
 
@@ -283,28 +283,30 @@ class ArgusPiGUI:
         self.subtitle_label.pack()
 
         # Define status variables
-        self.status_var = tk.StringVar(value="Waiting for USB device…")
+        self.status_var = tk.StringVar(value="Waiting for USB deviceâ€¦")
         self.current_status_key = "waiting"  # Track current status for screensaver restoration
 
         # Define color mapping BEFORE using it (FIXED: was causing AttributeError)
         self._color_map = {
-            "waiting": ("#0066cc", "Waiting for USB device…"),
-            "scanning": ("#ffcc00", "Scanning USB device…"),
-            "clean": ("#00cc00", "✓ Scan complete - No threats detected"),
-            "infected": ("#cc0000", "⚠ THREATS DETECTED!"),
-            "error": ("#cc0000", "✗ Error during scan"),
+            "waiting": ("#0066cc", "Waiting for USB deviceâ€¦"),
+            "scanning": ("#ffcc00", "Scanning USB deviceâ€¦"),
+            "clean": ("#00cc00", "âœ“ Scan complete - No threats detected"),
+            "infected": ("#cc0000", "âš  THREATS DETECTED!"),
+            "error": ("#cc0000", "âœ— Error during scan"),
             # Persistent result statuses (shown until USB device is removed)
-            "scan_clean": ("#00cc00", "✅ SUCCESS: USB device is clean - Safe to remove"),
-            "scan_infected": ("#cc0000", "🦠 INFECTED: Malware detected - Remove immediately!"),
-            "scan_error": ("#cc6600", "⚠️ ERROR: Scan failed - Check device and try again"),
+            "scan_clean": ("#00cc00", "âœ… SUCCESS: USB device is clean - Safe to remove"),
+            "scan_infected": ("#cc0000", "ðŸ¦  INFECTED: Malware detected - Remove immediately!"),
+            "scan_error": ("#cc6600", "âš ï¸ ERROR: Scan failed - Check device and try again"),
         }
 
         # Create status panel - use proper color mapping instead of hardcoded blue
         initial_color = self._get_status_color("waiting")
         # Get screen dimensions for responsive sizing
         screen_width, screen_height = self._get_screen_dimensions()
-        status_width = max(600, int(screen_width * 0.6))  # Increased to 60% of screen width, minimum 600px
-        status_height = max(180, int(screen_height * 0.15))  # Scale height with screen size too
+        # Increased to 60% of screen width, minimum 600px
+        status_width = max(600, int(screen_width * 0.6))
+        # Scale height with screen size too
+        status_height = max(180, int(screen_height * 0.15))
         self.status_frame = tk.Frame(self.root, width=status_width, height=status_height, bg=initial_color)
         self.status_frame.pack(pady=40)  # Increased padding
 
@@ -329,7 +331,7 @@ class ArgusPiGUI:
         import time
         start_time = time.time()
         timeout_seconds = 10  # Maximum time to spend on screen detection
-        
+
         try:
             # Method 1: Try system commands first (most accurate after rpi-update) - but with timeout
             if time.time() - start_time < timeout_seconds:
@@ -337,8 +339,8 @@ class ArgusPiGUI:
                 if screen_width and screen_height:
                     return screen_width, screen_height
             else:
-                print("⚠ Screen detection timed out, using fallback")
-            
+                print("âš  Screen detection timed out, using fallback")
+
             # Method 2: Force Tkinter to update and get dimensions (but with timeout protection)
             if time.time() - start_time < timeout_seconds:
                 try:
@@ -346,13 +348,13 @@ class ArgusPiGUI:
                     width = self.root.winfo_screenwidth()
                     height = self.root.winfo_screenheight()
                     if width > 0 and height > 0:
-                        print(f"📱 Tkinter detected: {width}x{height}")
+                        print(f"ðŸ“± Tkinter detected: {width}x{height}")
                         return width, height
                 except Exception as e:
-                    print(f"⚠ Tkinter dimension detection failed: {e}")
-            
+                    print(f"âš  Tkinter dimension detection failed: {e}")
+
             # Method 3: Common Raspberry Pi display resolutions as fallbacks
-            print("⚠ Using fallback resolution detection")
+            print("âš  Using fallback resolution detection")
             fallback_resolutions = [
                 (1280, 720),   # 7" DSI display rotated
                 (720, 1280),   # 7" DSI display normal
@@ -361,16 +363,16 @@ class ArgusPiGUI:
                 (1920, 1080),  # Full HD
             ]
             return fallback_resolutions[0]  # Default to most common rotated resolution
-            
+
         except Exception as e:
-            print(f"⚠ Screen dimension detection completely failed: {e}")
+            print(f"âš  Screen dimension detection completely failed: {e}")
             return (1280, 720)  # Safe fallback
 
     def _get_system_screen_dimensions(self) -> tuple[int, int]:
         """Get screen dimensions using system commands with robust timeout handling."""
         try:
             import subprocess
-            
+
             # Try wlr-randr first (Wayland) with strict timeout
             try:
                 result = subprocess.run(["wlr-randr"], capture_output=True, text=True, timeout=3)
@@ -378,18 +380,18 @@ class ArgusPiGUI:
                     lines = result.stdout.strip().split('\n')
                     for line in lines:
                         if 'current' in line and 'x' in line:
-                            # Parse: "1280x720 @ 60.000000 Hz" 
+                            # Parse: "1280x720 @ 60.000000 Hz"
                             try:
                                 resolution = line.split()[0]
                                 if 'x' in resolution:
                                     width, height = map(int, resolution.split('x'))
-                                    print(f"🖥️ wlr-randr detected: {width}x{height}")
+                                    print(f"ðŸ–¥ï¸ wlr-randr detected: {width}x{height}")
                                     return width, height
                             except (ValueError, IndexError):
                                 continue
             except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
-                print("⚠ wlr-randr timed out or failed")
-            
+                print("âš  wlr-randr timed out or failed")
+
             # Try xrandr (X11) with strict timeout
             try:
                 result = subprocess.run(["xrandr"], capture_output=True, text=True, timeout=3)
@@ -402,13 +404,13 @@ class ArgusPiGUI:
                                 resolution = parts[0]
                                 if 'x' in resolution:
                                     width, height = map(int, resolution.split('x'))
-                                    print(f"🖥️ xrandr detected: {width}x{height}")
+                                    print(f"ðŸ–¥ï¸ xrandr detected: {width}x{height}")
                                     return width, height
                             except (ValueError, IndexError):
                                 continue
             except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
-                print("⚠ xrandr timed out or failed")
-            
+                print("âš  xrandr timed out or failed")
+
             # Try fbset (framebuffer) with strict timeout
             try:
                 result = subprocess.run(["fbset"], capture_output=True, text=True, timeout=3)
@@ -420,17 +422,17 @@ class ArgusPiGUI:
                                 parts = line.strip().split()
                                 width = int(parts[1])
                                 height = int(parts[2])
-                                print(f"🖥️ fbset detected: {width}x{height}")
+                                print(f"ðŸ–¥ï¸ fbset detected: {width}x{height}")
                                 return width, height
                             except (ValueError, IndexError):
                                 continue
             except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
-                print("⚠ fbset timed out or failed")
-            
+                print("âš  fbset timed out or failed")
+
         except Exception as e:
-            print(f"⚠ System screen detection failed: {e}")
-        
-        print("⚠ All system screen detection methods failed, using fallback")
+            print(f"âš  System screen detection failed: {e}")
+
+        print("âš  All system screen detection methods failed, using fallback")
         return 0, 0  # Indicate failure
 
     def _configure_dpi_scaling(self) -> None:
@@ -438,7 +440,7 @@ class ArgusPiGUI:
         try:
             # Force Tkinter to use system DPI
             self.root.tk.call('tk', 'scaling', 1.0)
-            
+
             # Try to disable DPI awareness that might cause scaling issues
             try:
                 import ctypes
@@ -448,100 +450,100 @@ class ArgusPiGUI:
                     result = subprocess.run(["xrdb", "-query"], capture_output=True, text=True, timeout=3)
                     if result.returncode == 0 and "Xft.dpi" not in result.stdout:
                         # Set DPI to standard 96 if not set
-                        subprocess.run(["xrdb", "-merge"], input="Xft.dpi: 96\n", 
+                        subprocess.run(["xrdb", "-merge"], input="Xft.dpi: 96\n",
                                      text=True, timeout=3)
-                        print("✓ Set X11 DPI to standard 96")
+                        print("âœ“ Set X11 DPI to standard 96")
                 except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
-                    print(f"⚠ X11 DPI configuration skipped: {e}")
+                    print(f"âš  X11 DPI configuration skipped: {e}")
             except Exception:
                 pass
-            
-            print("✓ DPI scaling configured")
+
+            print("âœ“ DPI scaling configured")
         except Exception as e:
-            print(f"⚠ DPI scaling configuration failed: {e}")
+            print(f"âš  DPI scaling configuration failed: {e}")
 
     def _disable_window_manager_interference(self) -> None:
         """Disable window manager features that might interfere with fullscreen."""
         try:
             # Set window properties to prevent window manager interference
             self.root.wm_attributes("-type", "splash")  # Splash windows are often unmanaged
-            
+
             # Try to set window hints for different window managers
             try:
                 # KDE/LXDE hints
                 self.root.wm_attributes("-topmost", True)
             except tk.TclError:
                 pass
-            
+
             try:
                 # Set WM class for window manager recognition
                 self.root.wm_class("ArgusPi", "Kiosk")
             except tk.TclError:
                 pass
-                
+
             # Attempt to disable window manager decorations more aggressively
             try:
                 import subprocess
-                
+
                 # Try to disable desktop environment window management for this window
                 # Get window ID after it's created
                 self.root.update_idletasks()
-                
+
                 # For labwc/Wayland - try to set window properties
                 subprocess.run([
                     "swaymsg", "[class=ArgusPi]", "floating", "enable"
                 ], capture_output=True, timeout=2)
-                
+
                 subprocess.run([
                     "swaymsg", "[class=ArgusPi]", "fullscreen", "enable"
                 ], capture_output=True, timeout=2)
-                
+
             except Exception:
                 pass  # Window manager commands might not be available
-                
-            print("✓ Window manager interference mitigation applied")
-            
+
+            print("âœ“ Window manager interference mitigation applied")
+
         except Exception as e:
-            print(f"⚠ Window manager configuration failed: {e}")
+            print(f"âš  Window manager configuration failed: {e}")
 
     def _apply_display_rotation(self) -> None:
-        """Apply display rotation with comprehensive system integration."""        
+        """Apply display rotation with comprehensive system integration."""
         if self.display_rotation == 0:
-            print("✓ Display rotation: 0° (normal)")
+            print("âœ“ Display rotation: 0Â° (normal)")
             return
-            
-        rotation_names = {0: "0° (normal)", 1: "90° clockwise", 2: "180°", 3: "270° clockwise"}
-        print(f"🔄 Applying display rotation: {rotation_names.get(self.display_rotation, 'unknown')}")
-        
+
+        rotation_names = {0: "0Â° (normal)", 1: "90Â° clockwise", 2: "180Â°", 3: "270Â° clockwise"}
+        print(f"ðŸ”„ Applying display rotation: {rotation_names.get(self.display_rotation, 'unknown')}")
+
         # Try multiple rotation methods in order of effectiveness
         methods_tried = []
-        
+
         # Method 1: wlr-randr (Wayland - modern Raspberry Pi OS)
         if self._try_wlr_randr_rotation():
-            methods_tried.append("wlr-randr ✓")
+            methods_tried.append("wlr-randr âœ“")
         else:
-            methods_tried.append("wlr-randr ✗")
-            
+            methods_tried.append("wlr-randr âœ—")
+
         # Method 2: xrandr (X11 - older systems)
         if self._try_xrandr_rotation():
-            methods_tried.append("xrandr ✓")
+            methods_tried.append("xrandr âœ“")
         else:
-            methods_tried.append("xrandr ✗")
-            
+            methods_tried.append("xrandr âœ—")
+
         # Method 3: Direct framebuffer rotation (if available)
         if self._try_framebuffer_rotation():
-            methods_tried.append("framebuffer ✓")
+            methods_tried.append("framebuffer âœ“")
         else:
-            methods_tried.append("framebuffer ✗")
-        
-        print(f"🔧 Rotation methods tried: {', '.join(methods_tried)}")
-        
+            methods_tried.append("framebuffer âœ—")
+
+        print(f"ðŸ”§ Rotation methods tried: {', '.join(methods_tried)}")
+
         # Configure touch input transformation
         self._configure_touch_rotation()
-        
+
         # Disable desktop auto-mount dialogs for kiosk mode
         self._disable_automount_dialogs()
-        
+
         # Provide manual configuration guidance
         self._show_manual_rotation_config()
 
@@ -549,33 +551,33 @@ class ArgusPiGUI:
         """Try rotation using wlr-randr (Wayland/labwc on modern Raspberry Pi OS)."""
         try:
             import subprocess
-            
+
             # Check if wlr-randr is available
             result = subprocess.run(["which", "wlr-randr"], capture_output=True, text=True, timeout=3)
             if result.returncode != 0:
                 return False
-                
-            # Map rotation values to wlr-randr parameters  
+
+            # Map rotation values to wlr-randr parameters
             wlr_rotations = {1: "90", 2: "180", 3: "270"}
             wlr_rotation = wlr_rotations.get(self.display_rotation)
-            
+
             if wlr_rotation:
                 # Get available outputs
                 result = subprocess.run(["wlr-randr"], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
                     output_lines = result.stdout.strip().split('\n')
                     outputs = [line.split()[0] for line in output_lines if line and not line.startswith(' ')]
-                    
+
                     for output in outputs:
                         if output:  # Skip empty outputs
                             result = subprocess.run([
                                 "wlr-randr", "--output", output, "--transform", wlr_rotation
                             ], capture_output=True, text=True, timeout=5)
-                            
+
                             if result.returncode == 0:
-                                print(f"✓ Applied Wayland rotation via wlr-randr on {output}: {wlr_rotation}°")
+                                print(f"âœ“ Applied Wayland rotation via wlr-randr on {output}: {wlr_rotation}Â°")
                                 return True
-            
+
             return False
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
             return False
@@ -584,24 +586,24 @@ class ArgusPiGUI:
         """Attempt to rotate display using xrandr command (X11)."""
         try:
             import subprocess
-            
+
             # Map rotation values to xrandr parameters
             xrandr_rotations = {1: "left", 2: "inverted", 3: "right"}
             xrandr_rotation = xrandr_rotations.get(self.display_rotation)
-            
+
             if xrandr_rotation:
                 # Try common display output names for Raspberry Pi
                 display_names = ["DSI-1", "HDMI-1", "HDMI-2", "DPI-1", "HDMI-A-1", "HDMI-A-2"]
-                
+
                 for display_name in display_names:
                     result = subprocess.run([
                         "xrandr", "--output", display_name, "--rotate", xrandr_rotation
                     ], capture_output=True, text=True, timeout=5)
-                    
+
                     if result.returncode == 0:
-                        print(f"✓ Applied X11 rotation via xrandr on {display_name}: {xrandr_rotation}")
+                        print(f"âœ“ Applied X11 rotation via xrandr on {display_name}: {xrandr_rotation}")
                         return True
-            
+
             return False
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
             return False
@@ -610,17 +612,17 @@ class ArgusPiGUI:
         """Try to apply rotation via framebuffer console."""
         try:
             import subprocess
-            
+
             # Try to rotate framebuffer console (affects console before X/Wayland starts)
             fb_rotation = self.display_rotation
             result = subprocess.run([
                 "sudo", "bash", "-c", f"echo {fb_rotation} > /sys/class/graphics/fbcon/rotate_all"
             ], capture_output=True, text=True, timeout=3)
-            
+
             if result.returncode == 0:
-                print(f"✓ Applied framebuffer console rotation: {fb_rotation}")
+                print(f"âœ“ Applied framebuffer console rotation: {fb_rotation}")
                 return True
-            
+
             return False
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
             return False
@@ -629,47 +631,47 @@ class ArgusPiGUI:
         """Configure touch input coordinate transformation for rotation."""
         if self.display_rotation == 0:
             return
-            
+
         try:
             import subprocess
-            
+
             # Create transformation matrix for libinput
             # Rotation matrices for coordinate transformation
             transforms = {
-                1: "0 -1 1 1 0 0 0 0 1",    # 90° clockwise
-                2: "-1 0 1 0 -1 1 0 0 1",   # 180°
-                3: "0 1 0 -1 0 1 0 0 1"     # 270° clockwise (90° counter-clockwise)
+                1: "0 -1 1 1 0 0 0 0 1",    # 90Â° clockwise
+                2: "-1 0 1 0 -1 1 0 0 1",   # 180Â°
+                3: "0 1 0 -1 0 1 0 0 1"     # 270Â° clockwise (90Â° counter-clockwise)
             }
-            
+
             transform_matrix = transforms.get(self.display_rotation)
             if not transform_matrix:
                 return
-            
+
             # Try to find and configure touch devices
             result = subprocess.run(["xinput", "list", "--name-only"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
-                touch_devices = [line.strip() for line in result.stdout.split('\n') 
+                touch_devices = [line.strip() for line in result.stdout.split('\n')
                                if 'touch' in line.lower() or 'screen' in line.lower()]
-                
+
                 for device in touch_devices:
                     if device:
                         subprocess.run([
                             "xinput", "set-prop", device, "Coordinate Transformation Matrix",
                             *transform_matrix.split()
                         ], capture_output=True, text=True, timeout=3)
-                
+
                 if touch_devices:
-                    print(f"✓ Configured touch coordinate transformation for rotation")
+                    print(f"âœ“ Configured touch coordinate transformation for rotation")
                 else:
-                    print("ℹ No touch devices found for coordinate transformation")
+                    print("â„¹ No touch devices found for coordinate transformation")
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-            print("ℹ Touch coordinate transformation not available")
+            print("â„¹ Touch coordinate transformation not available")
 
     def _disable_automount_dialogs(self) -> None:
         """Disable desktop auto-mount dialogs that interfere with kiosk mode."""
         try:
             import subprocess
-            
+
             # Method 1: Disable GNOME/MATE automount notifications
             try:
                 subprocess.run([
@@ -678,11 +680,11 @@ class ArgusPiGUI:
                 subprocess.run([
                     "gsettings", "set", "org.gnome.desktop.media-handling", "autorun-never", "true"
                 ], capture_output=True, timeout=3)
-                print("✓ GNOME automount dialogs disabled")
+                print("âœ“ GNOME automount dialogs disabled")
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 pass
-                
-            # Method 2: Disable XFCE/LXDE automount notifications  
+
+            # Method 2: Disable XFCE/LXDE automount notifications
             try:
                 subprocess.run([
                     "xfconf-query", "-c", "thunar-volman", "-p", "/automount-drives/enabled", "-s", "false"
@@ -690,10 +692,10 @@ class ArgusPiGUI:
                 subprocess.run([
                     "xfconf-query", "-c", "thunar-volman", "-p", "/automount-media/enabled", "-s", "false"
                 ], capture_output=True, timeout=3)
-                print("✓ XFCE automount dialogs disabled")
+                print("âœ“ XFCE automount dialogs disabled")
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 pass
-                
+
             # Method 3: Disable PCManFM (LXDE file manager) automount
             try:
                 subprocess.run([
@@ -702,44 +704,44 @@ class ArgusPiGUI:
                 subprocess.run([
                     "pcmanfm", "--set-config", "mount_removable", "0"
                 ], capture_output=True, timeout=3)
-                print("✓ PCManFM automount dialogs disabled")
+                print("âœ“ PCManFM automount dialogs disabled")
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 pass
-                
+
             # Method 4: Kill any existing automount processes
             try:
                 subprocess.run(["pkill", "-f", "gvfs-udisks2-volume-monitor"], capture_output=True, timeout=2)
                 subprocess.run(["pkill", "-f", "udisks-daemon"], capture_output=True, timeout=2)
-                print("✓ Existing automount processes terminated")
+                print("âœ“ Existing automount processes terminated")
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 pass
-                
+
         except Exception as e:
-            print(f"⚠ Auto-mount dialog suppression failed: {e}")
+            print(f"âš  Auto-mount dialog suppression failed: {e}")
 
     def _show_manual_rotation_config(self) -> None:
         """Show manual configuration options for persistent rotation."""
         if self.display_rotation == 0:
             return
-            
+
         print("\n" + "=" * 60)
-        print("📋 MANUAL ROTATION CONFIGURATION")
+        print("ðŸ“‹ MANUAL ROTATION CONFIGURATION")
         print("=" * 60)
-        print(f"For persistent {self.display_rotation * 90}° rotation across reboots:")
+        print(f"For persistent {self.display_rotation * 90}Â° rotation across reboots:")
         print()
-        print("🔧 Method 1: Boot Command Line (Recommended)")
+        print("ðŸ”§ Method 1: Boot Command Line (Recommended)")
         print("   Edit /boot/firmware/cmdline.txt and add at the end:")
         print(f"   video=DSI-1:720x1280@60,rotate={self.display_rotation * 90}")
         print()
-        print("🔧 Method 2: Config.txt (Alternative)")  
+        print("ðŸ”§ Method 2: Config.txt (Alternative)")
         print("   Add to /boot/firmware/config.txt:")
         print(f"   display_rotate={self.display_rotation}")
         print()
-        print("🔧 Method 3: Desktop Session (GUI environments)")
+        print("ðŸ”§ Method 3: Desktop Session (GUI environments)")
         print("   Add to ~/.config/autostart/screen-rotation.desktop:")
         print(f"   Exec=wlr-randr --output DSI-1 --transform {self.display_rotation * 90}")
         print()
-        print("🔧 Method 4: Systemd Service (Service mode)")
+        print("ðŸ”§ Method 4: Systemd Service (Service mode)")
         print("   ArgusPi service can be configured to apply rotation on startup")
         print("=" * 60)
 
@@ -748,7 +750,7 @@ class ArgusPiGUI:
         # Action display frame
         self.action_frame = tk.Frame(self.root, bg="black")
         self.action_frame.pack(pady=(30, 15), fill="x", padx=20)  # Increased padding
-        
+
         # Current action label - Much larger font
         self.action_var = tk.StringVar(value=self.current_action)
         self.action_label = tk.Label(
@@ -780,7 +782,7 @@ class ArgusPiGUI:
                        lightcolor="#00cc00",
                        darkcolor="#008800",
                        thickness=progress_height)  # Much thicker progress bar
-        
+
         self.progress_bar = ttk.Progressbar(
             self.progress_frame,
             mode='determinate',
@@ -788,7 +790,7 @@ class ArgusPiGUI:
             style="Custom.Horizontal.TProgressbar"
         )
         self.progress_bar.pack(pady=(0, 15))  # Increased spacing
-        
+
         # Timer display - Much larger font
         self.timer_var = tk.StringVar(value="00:00 | 0/0 files")
         self.timer_label = tk.Label(
@@ -847,19 +849,19 @@ class ArgusPiGUI:
                         elapsed = self.final_scan_time
                     else:
                         elapsed = time.time() - self.scan_start_time
-                    
+
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
                     time_str = f"{minutes:02d}:{seconds:02d}"
                 else:
                     time_str = "00:00"
-                
+
                 # Format file progress display
                 files_str = f"{self.files_scanned}/{self.total_files} files"
-                
+
                 # Combine time and file progress
                 self.timer_var.set(f"{time_str} | {files_str}")
-                
+
                 # Schedule next update
                 self.root.after(1000, self._update_timer)
             except Exception:
@@ -869,12 +871,12 @@ class ArgusPiGUI:
         """Update progress bar and action text in simple mode."""
         if not self.simple_mode:
             return
-            
+
         try:
             # Update file counters for timer display
             self.files_scanned = current
             self.total_files = total
-            
+
             def update_ui():
                 # Update progress bar
                 if hasattr(self, 'progress_bar'):
@@ -884,18 +886,18 @@ class ArgusPiGUI:
                     else:
                         # Reset progress bar to 0% when total is 0 (idle state)
                         self.progress_bar['value'] = 0
-                
+
                 # Update progress text
                 if hasattr(self, 'progress_var'):
                     if total > 0:
                         self.progress_var.set(f"Files scanned: {current} / {total}")
                     else:
                         self.progress_var.set("Ready")
-                
+
                 # Update action text
                 if hasattr(self, 'action_var') and action:
                     self.action_var.set(action)
-            
+
             self.root.after(0, update_ui)
         except Exception:
             pass
@@ -929,9 +931,9 @@ class ArgusPiGUI:
         # Track status changes and log to file if logging is available
         if hasattr(self, 'current_status_key') and self.current_status_key != status:
             if hasattr(self, '_log_callback') and self._log_callback:
-                debug_msg = f"GUI Status change: {getattr(self, 'current_status_key', 'None')} → {status}"
+                debug_msg = f"GUI Status change: {getattr(self, 'current_status_key', 'None')} â†’ {status}"
                 self._log_callback(debug_msg, "DEBUG")
-        
+
         self.current_status_key = status  # Store current status key for screensaver restoration
         colour, message = self._color_map.get(status, ("white", status))
         # Use after() to schedule GUI updates from other threads
@@ -1037,7 +1039,7 @@ class ArgusPiGUI:
         screen_height = canvas.winfo_reqheight()
 
         # Get current status info
-        status_color, status_message = self._color_map.get(self.current_status_key, ("#0066cc", "Waiting for USB device…"))
+        status_color, status_message = self._color_map.get(self.current_status_key, ("#0066cc", "Waiting for USB deviceâ€¦"))
 
         # Create floating ArgusPi logo
         self.logo_x = screen_width // 2
@@ -1072,7 +1074,7 @@ class ArgusPiGUI:
             outline="white",
             width=2
         )
-        
+
         self.status_text = canvas.create_text(
             self.status_x, self.status_y,
             text=status_message,
@@ -1126,25 +1128,25 @@ class ArgusPiGUI:
             canvas.coords(self.subtitle_text, self.logo_x, self.logo_y + 60)
 
             # Update status display with current status
-            status_color, status_message = self._color_map.get(self.current_status_key, ("#0066cc", "Waiting for USB device…"))
-            
+            status_color, status_message = self._color_map.get(self.current_status_key, ("#0066cc", "Waiting for USB deviceâ€¦"))
+
             # Add scanning animation dots if scanning
             if self.current_status_key == "scanning":
                 if not hasattr(self, 'scanning_timer'):
                     self.scanning_timer = 0
                     self.scanning_dots = 0
-                
+
                 self.scanning_timer += 1
                 if self.scanning_timer >= 10:  # Update every ~500ms (10 * 50ms frames)
                     self.scanning_timer = 0
                     self.scanning_dots = (self.scanning_dots + 1) % 4
                     dots = "." * self.scanning_dots
-                    animated_message = status_message.rstrip("…") + dots
+                    animated_message = status_message.rstrip("â€¦") + dots
                     canvas.itemconfig(self.status_text, text=animated_message)
             else:
                 # Update status text for non-scanning states
                 canvas.itemconfig(self.status_text, text=status_message)
-            
+
             # Update status background color
             canvas.itemconfig(self.status_bg, fill=status_color)
 
@@ -1168,7 +1170,7 @@ class ArgusPiGUI:
         if hasattr(self, '_log_callback') and self._log_callback:
             debug_msg = f"Restoring interface with status: {getattr(self, 'current_status_key', 'None')}"
             self._log_callback(debug_msg, "DEBUG")
-        
+
         # Recreate main interface elements
         # Title banner
         self.title_frame = tk.Frame(self.root, bg="black")
@@ -1218,7 +1220,7 @@ class ArgusPiGUI:
             self._create_simple_mode_display()
         else:
             self._create_detailed_mode_display()
-            
+
         # Restore saved log content if in detailed mode
         if not self.simple_mode and hasattr(self, 'saved_log_content') and self.saved_log_content:
             try:
@@ -1233,13 +1235,13 @@ class ArgusPiGUI:
         """Enter the Tk main loop."""
         import time
         self.last_activity = time.time()
-        
+
         # Schedule geometry fix after GUI is fully loaded (fixes half-screen issues)
         self.root.after(1000, self._fix_geometry_after_load)
-        
+
         # Start screensaver checker
         self.root.after(10000, self._check_screensaver)
-        
+
         # Start focus restoration to prevent dialogs from stealing focus
         self.root.after(2000, self._restore_focus)
 
@@ -1255,10 +1257,10 @@ class ArgusPiGUI:
             # Bring ArgusPi window back to front and grab focus
             self.root.lift()
             self.root.focus_force()
-            
+
             # Schedule next focus restoration in 5 seconds
             self.root.after(5000, self._restore_focus)
-            
+
         except Exception:
             # Continue trying to restore focus even if there's an error
             self.root.after(5000, self._restore_focus)
@@ -1268,17 +1270,17 @@ class ArgusPiGUI:
         try:
             # Just ensure we're still in fullscreen mode - don't fight with window manager
             self.root.attributes("-fullscreen", True)
-            
+
             # Log final dimensions for debugging
             try:
-                actual_width = self.root.winfo_width() 
+                actual_width = self.root.winfo_width()
                 actual_height = self.root.winfo_height()
-                print(f"✓ Final window size: {actual_width}x{actual_height}")
+                print(f"âœ“ Final window size: {actual_width}x{actual_height}")
             except:
                 pass
-                
+
         except Exception as e:
-            print(f"⚠ Geometry fix failed: {e}")
+            print(f"âš  Geometry fix failed: {e}")
             # Don't retry - just accept whatever we get
 
 
@@ -1342,7 +1344,7 @@ class ArgusPiStation:
             "infected": (1.0, 0.0, 0.0),     # red
             # Persistent result statuses
             "scan_clean": (0.0, 1.0, 0.0),   # green - clean result
-            "scan_infected": (1.0, 0.0, 0.0), # red - infected result  
+            "scan_infected": (1.0, 0.0, 0.0), # red - infected result
             "scan_error": (1.0, 0.5, 0.0),   # orange - error result
         }
         # Initialise GUI if enabled
@@ -1608,7 +1610,7 @@ class ArgusPiStation:
             self.gui.set_status(status)
             # Reset progress bar when returning to waiting state
             if status == "waiting" and self.gui.simple_mode:
-                self.gui.update_progress(0, 0, "Waiting for USB device…")
+                self.gui.update_progress(0, 0, "Waiting for USB deviceâ€¦")
 
     @staticmethod
     def compute_hash(file_path: str) -> str:
@@ -1704,16 +1706,16 @@ class ArgusPiStation:
     def _scan_path_bulk_local(self, mount_point: str) -> None:
         """Optimized bulk local scanning for offline mode."""
         self.log(f"Starting bulk ClamAV scan of {mount_point}", "INFO")
-        
+
         # Count files first for progress tracking
         total_files = 0
         for root, dirs, files in os.walk(mount_point):
             total_files += len(files)
-        
+
         if self.gui:
             self.gui.set_status("scanning")
             self.gui.update_progress(0, total_files, "Scanning all files with ClamAV...")
-        
+
         try:
             # Run bulk scan on entire mount point
             result = subprocess.run(
@@ -1723,7 +1725,7 @@ class ArgusPiStation:
                 text=True,
                 timeout=600  # 10 minute timeout for bulk scan
             )
-            
+
             infected_files = []
             if result.stdout:
                 # Parse infected files from output
@@ -1731,7 +1733,7 @@ class ArgusPiStation:
                     if line and 'FOUND' in line:
                         infected_file = line.split(':')[0].strip()
                         infected_files.append(infected_file)
-            
+
             # Update final status
             if infected_files:
                 self.log(f"ClamAV detected {len(infected_files)} infected files", "WARN")
@@ -1747,7 +1749,7 @@ class ArgusPiStation:
                 self.log(f"ClamAV scan completed - {total_files} files clean", "INFO")
                 if self.gui:
                     self.gui.set_status("scan_clean")
-                    
+
         except subprocess.TimeoutExpired:
             self.log("ClamAV bulk scan timed out", "ERROR")
             if self.gui:
@@ -1778,7 +1780,7 @@ class ArgusPiStation:
                     total_files += len(files)
             except Exception:
                 total_files = 0
-            
+
             self.gui.update_progress(0, total_files, "Starting scan...")
 
         # Send SIEM event for scan start
@@ -1937,17 +1939,17 @@ class ArgusPiStation:
         """
         device_name = os.path.basename(device_node)
         mount_point = os.path.join(self.mount_base, device_name)
-        
+
         # Check if device is already mounted somewhere
         try:
             mount_check = subprocess.run(
-                ["mount"], 
-                capture_output=True, 
-                text=True, 
+                ["mount"],
+                capture_output=True,
+                text=True,
                 check=True
             )
             mount_lines = mount_check.stdout.strip().split('\n')
-            
+
             for line in mount_lines:
                 if device_node in line:
                     # Device is already mounted, extract the mount point
@@ -1959,7 +1961,7 @@ class ArgusPiStation:
                         with self.mount_lock:
                             self.active_mounts.add((device_node, existing_mount))
                         return existing_mount
-                        
+
             # Also check /proc/mounts as a backup
             with open('/proc/mounts', 'r') as f:
                 for line in f:
@@ -1971,18 +1973,18 @@ class ArgusPiStation:
                             with self.mount_lock:
                                 self.active_mounts.add((device_node, existing_mount))
                             return existing_mount
-                            
+
         except (subprocess.CalledProcessError, IOError) as e:
             # If mount command or /proc/mounts fails, proceed with normal mounting
             self.log(f"Could not check existing mounts: {e}", "DEBUG")
             pass
-        
+
         # Device not mounted, proceed with our own mounting
         os.makedirs(mount_point, exist_ok=True)
-        
+
         # Put device into read-only state (ignore errors)
         subprocess.run(["/sbin/hdparm", "-r1", device_node], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
+
         # Try to mount with safe options
         try:
             result = subprocess.run(
@@ -2004,19 +2006,19 @@ class ArgusPiStation:
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.strip() if e.stderr else str(e)
             self.log(f"Failed to mount {device_node}: {error_msg}", "ERROR")
-            
+
             # If device is already mounted, try to find where it's mounted
             if "already mounted" in error_msg.lower() or "busy" in error_msg.lower():
                 self.log(f"Device appears to be already mounted, re-checking mount points", "DEBUG")
                 try:
                     mount_check = subprocess.run(
-                        ["mount"], 
-                        capture_output=True, 
-                        text=True, 
+                        ["mount"],
+                        capture_output=True,
+                        text=True,
                         check=True
                     )
                     mount_lines = mount_check.stdout.strip().split('\n')
-                    
+
                     for line in mount_lines:
                         if device_node in line:
                             parts = line.split()
@@ -2029,7 +2031,7 @@ class ArgusPiStation:
                                 return existing_mount
                 except subprocess.CalledProcessError:
                     pass
-            
+
             # Reset read-only flag on failure
             subprocess.run(["/sbin/hdparm", "-r0", device_node], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return None
@@ -2039,7 +2041,7 @@ class ArgusPiStation:
         try:
             # Check if this is our mount point (under /mnt/arguspi) or a system mount
             is_our_mount = mount_point.startswith(self.mount_base)
-            
+
             if is_our_mount:
                 # This is our mount, safe to unmount
                 subprocess.run(["/bin/umount", mount_point], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -2071,7 +2073,7 @@ class ArgusPiStation:
     def handle_device(self, device) -> None:
         """Perform scanning for a newly added USB device."""
         device_node = device.device_node
-        
+
         # Check if we're already processing this device
         with self.processing_lock:
             if device_node in self.processing_devices:
@@ -2079,29 +2081,29 @@ class ArgusPiStation:
                 return
             # Mark device as being processed
             self.processing_devices.add(device_node)
-        
+
         try:
             # Debug: Log device information
             fs_type = device.get("ID_FS_TYPE", "unknown")
             device_label = device.get("ID_FS_LABEL", "unlabeled")
             device_uuid = device.get("ID_FS_UUID", "no-uuid")
-            
+
             self.log(f"ArgusPi detected USB device {device_node} (fs: {fs_type}, label: {device_label})")
             self.log(f"Device details - UUID: {device_uuid}, Bus: {device.get('ID_BUS', 'unknown')}", "DEBUG")
-            
+
             # Update action for simple mode
             if self.gui and self.gui.simple_mode:
                 self.gui.update_progress(0, 0, "Mounting USB device...")
-            
+
             mount_point = self.mount_device(device_node)
             if mount_point:
                 # Set LED to scanning state
                 self.update_status("scanning")
-                
+
                 # Update action for simple mode
                 if self.gui and self.gui.simple_mode:
                     self.gui.update_progress(0, 0, "Preparing to scan...")
-                
+
                 try:
                     self.log(f"Mounted {device_node} at {mount_point}. Beginning ArgusPi scan.")
                     result = self.scan_path(mount_point)
@@ -2112,12 +2114,12 @@ class ArgusPiStation:
                             self.current_scan_result = "error"
                             self.update_status("scan_error")
                         elif result is True:
-                            self.current_scan_result = "infected" 
+                            self.current_scan_result = "infected"
                             self.update_status("scan_infected")
                         else:
                             self.current_scan_result = "clean"
                             self.update_status("scan_clean")
-                            
+
                         # Stop timer and show completion in simple mode
                         if self.gui:
                             self.gui.stop_scan_timer()
@@ -2125,15 +2127,15 @@ class ArgusPiStation:
                                 if result is None:
                                     self.gui.update_progress(0, 0, "Scan failed - Error occurred")
                                 elif result is True:
-                                    self.gui.update_progress(100, 100, "⚠️ THREATS DETECTED!")
+                                    self.gui.update_progress(100, 100, "âš ï¸ THREATS DETECTED!")
                                 else:
-                                    self.gui.update_progress(100, 100, "✅ Scan complete - Device is clean")
-                            
+                                    self.gui.update_progress(100, 100, "âœ… Scan complete - Device is clean")
+
                 finally:
                     # Update action for unmounting
                     if self.gui and self.gui.simple_mode:
                         self.gui.update_progress(0, 0, "Unmounting USB device...")
-                    
+
                     self.unmount_device(device_node, mount_point)
                     self.log(f"ArgusPi completed scan of {device_node} and unmounted.")
                     # Don't return to waiting - keep showing result until USB removed
@@ -2143,7 +2145,7 @@ class ArgusPiStation:
                     self.current_device_node = device_node
                     self.current_scan_result = "error"
                 self.update_status("scan_error")
-                
+
         finally:
             # Remove device from processing set
             with self.processing_lock:
@@ -2152,11 +2154,11 @@ class ArgusPiStation:
     def handle_device_removal(self, device) -> None:
         """Handle USB device removal and reset status to waiting."""
         device_node = device.device_node
-        
+
         # Clean up processing tracker
         with self.processing_lock:
             self.processing_devices.discard(device_node)
-        
+
         with self.result_lock:
             # Check if this device matches our tracked scan result
             if self.current_device_node == device_node or self.current_scan_result is not None:
@@ -2169,7 +2171,7 @@ class ArgusPiStation:
                     self.gui.final_scan_time = None
                     # Reset progress bar and action text in simple mode
                     if self.gui.simple_mode:
-                        self.gui.update_progress(0, 0, "Waiting for USB device…")
+                        self.gui.update_progress(0, 0, "Waiting for USB deviceâ€¦")
                 self.update_status("waiting")
 
     def monitor_devices(self) -> None:

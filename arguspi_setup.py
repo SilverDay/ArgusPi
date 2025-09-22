@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-ArgusPi Setup – Installer for the ArgusPi USB security scanning station.
+ArgusPi Setup â€“ Installer for the ArgusPi USB security scanning station.
 
 This helper script automates the configuration of a Raspberry Pi as an
 ArgusPi USB malware checking station. It performs the following tasks:
@@ -43,14 +43,14 @@ import ipaddress
 def load_existing_config() -> dict:
     """Load existing ArgusPi configuration if it exists."""
     config_path = "/etc/arguspi/config.json"
-    
+
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError, PermissionError):
             pass
-    
+
     # Return default configuration if none exists
     return {
         "api_key": "",
@@ -72,17 +72,17 @@ def load_existing_config() -> dict:
 
 def print_banner():
     """Print an attractive banner for the setup script."""
-    print("\n" + "═" * 80)
-    print(" █████╗ ██████╗  ██████╗ ██╗   ██╗███████╗██████╗ ██╗")
-    print("██╔══██╗██╔══██╗██╔════╝ ██║   ██║██╔════╝██╔══██╗██║")
-    print("███████║██████╔╝██║  ███╗██║   ██║███████╗██████╔╝██║")
-    print("██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║██╔═══╝ ██║")
-    print("██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║██║     ██║")
-    print("╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝╚═╝     ╚═╝")
+    print("\n" + "â•" * 80)
+    print(" â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ•—   â–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ•—")
+    print("â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ•”â•â•â•â•â• â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â•â•â•â•â•â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘")
+    print("â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•‘â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•‘")
+    print("â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â•šâ•â•â•â•â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â•â•â•â• â–ˆâ–ˆâ•‘")
+    print("â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ•‘â•šâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â•šâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘     â–ˆâ–ˆâ•‘")
+    print("â•šâ•â•  â•šâ•â•â•šâ•â•  â•šâ•â• â•šâ•â•â•â•â•â•  â•šâ•â•â•â•â•â• â•šâ•â•â•â•â•â•â•â•šâ•â•     â•šâ•â•")
     print("")
     print("                    ArgusPi USB Security Scanner Setup")
     print("                  Enhanced Configuration & Installation")
-    print("═" * 80)
+    print("â•" * 80)
 
 
 def prompt_with_default(prompt_text: str, default_value: any = None, password: bool = False) -> str:
@@ -92,20 +92,20 @@ def prompt_with_default(prompt_text: str, default_value: any = None, password: b
             display_default = f"[{'*' * 8}] (current key hidden)"
         else:
             display_default = f"[{default_value}]"
-        
+
         full_prompt = f"{prompt_text} {display_default}: "
     else:
         full_prompt = f"{prompt_text}: "
-    
+
     if password:
         response = getpass(full_prompt).strip()
     else:
         response = input(full_prompt).strip()
-    
+
     # Return default if empty response and default exists
     if not response and default_value is not None:
         return str(default_value)
-    
+
     return response
 
 
@@ -113,10 +113,10 @@ def prompt_yes_no(prompt_text: str, default: bool = True) -> bool:
     """Prompt for yes/no with a default value."""
     default_text = "Y/n" if default else "y/N"
     response = input(f"{prompt_text} ({default_text}): ").strip().lower()
-    
+
     if not response:
         return default
-    
+
     return response in ("y", "yes", "1", "true")
 
 
@@ -425,7 +425,7 @@ def test_wifi_connectivity(timeout: int = 30) -> bool:
                     test_result = subprocess.run(['ping', '-c', '3', '8.8.8.8'],
                                                 capture_output=True, timeout=15)
                     if test_result.returncode == 0:
-                        print("✓ WiFi connectivity test successful")
+                        print("âœ“ WiFi connectivity test successful")
                         return True
 
                 time.sleep(1)
@@ -435,7 +435,7 @@ def test_wifi_connectivity(timeout: int = 30) -> bool:
             except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
                 continue
 
-        print("✗ WiFi connectivity test failed")
+        print("âœ— WiFi connectivity test failed")
         return False
 
     except Exception as e:
@@ -559,7 +559,7 @@ def prompt_wifi_configuration() -> bool:
     # Configure the network
     print(f"\nConfiguring WiFi network '{ssid}'...")
     if configure_wifi(ssid, password, security, hidden):
-        print("✓ WiFi configuration updated")
+        print("âœ“ WiFi configuration updated")
 
         # Test connectivity
         if test_wifi_connectivity():
@@ -569,7 +569,7 @@ def prompt_wifi_configuration() -> bool:
             print("You may need to check your credentials or network settings.")
             return False
     else:
-        print("✗ Failed to configure WiFi")
+        print("âœ— Failed to configure WiFi")
         return False
 
 
@@ -718,91 +718,91 @@ def require_root() -> None:
 def prompt_configuration() -> dict:
     """Interactively ask the user for configuration values with enhanced UX."""
     print_banner()
-    
+
     # Load existing configuration
     existing_config = load_existing_config()
     config_exists = os.path.exists("/etc/arguspi/config.json")
-    
+
     if config_exists:
-        print("📋 Existing Configuration Found!")
+        print("ðŸ“‹ Existing Configuration Found!")
         print("   Current values will be shown in [brackets]. Press Enter to keep current values.\n")
     else:
-        print("🆕 Setting up ArgusPi for the first time!")
+        print("ðŸ†• Setting up ArgusPi for the first time!")
         print("   Default values will be shown in [brackets]. Press Enter to accept defaults.\n")
-    
+
     config = {}
-    
+
     # Station identification
-    print("┌─ 🏷️  Station Identification " + "─" * 48)
-    print("│ This name identifies this ArgusPi station in logs and SIEM events.")
-    print("│ Examples: 'reception-desk', 'lab-entrance', 'security-checkpoint-1'")
-    print("└" + "─" * 70)
-    
+    print("â”Œâ”€ ðŸ·ï¸  Station Identification " + "â”€" * 48)
+    print("â”‚ This name identifies this ArgusPi station in logs and SIEM events.")
+    print("â”‚ Examples: 'reception-desk', 'lab-entrance', 'security-checkpoint-1'")
+    print("â””" + "â”€" * 70)
+
     while True:
         station_name = prompt_with_default(
-            "Station name", 
+            "Station name",
             existing_config.get("station_name", "arguspi-station")
         )
-        
+
         # Validate station name
         if station_name.replace('-', '').replace('_', '').replace('.', '').isalnum():
             config["station_name"] = station_name
-            print(f"   ✓ Station name: {station_name}\n")
+            print(f"   âœ“ Station name: {station_name}\n")
             break
         else:
-            print("   ❌ Station name must contain only letters, numbers, hyphens, underscores, and dots.\n")
+            print("   âŒ Station name must contain only letters, numbers, hyphens, underscores, and dots.\n")
 
     # VirusTotal Configuration
-    print("┌─ 🔍 VirusTotal Integration " + "─" * 47)
-    print("│ Cloud-based threat analysis (optional for offline environments)")
-    print("│ Leave empty to run in offline mode with local scanning only")
-    print("└" + "─" * 70)
-    
+    print("â”Œâ”€ ðŸ” VirusTotal Integration " + "â”€" * 47)
+    print("â”‚ Cloud-based threat analysis (optional for offline environments)")
+    print("â”‚ Leave empty to run in offline mode with local scanning only")
+    print("â””" + "â”€" * 70)
+
     has_existing_key = bool(existing_config.get("api_key"))
     use_virustotal = prompt_yes_no(
         "Enable VirusTotal cloud analysis",
         default=has_existing_key or not config_exists
     )
-    
+
     if use_virustotal:
         while True:
             api_key = prompt_with_default(
-                "VirusTotal API key", 
+                "VirusTotal API key",
                 existing_config.get("api_key", ""),
                 password=True
             )
-            
+
             if not api_key:
-                print("   ❌ API key cannot be empty when VirusTotal is enabled.")
+                print("   âŒ API key cannot be empty when VirusTotal is enabled.")
                 if existing_config.get("api_key"):
                     keep_existing = prompt_yes_no("Keep existing API key", default=True)
                     if keep_existing:
                         config["api_key"] = existing_config["api_key"]
-                        print("   ✓ Keeping existing API key\n")
+                        print("   âœ“ Keeping existing API key\n")
                         break
                 continue
-            
+
             # Validate key length
             if len(api_key) != 64:
-                print(f"   ⚠️  Warning: VirusTotal API keys are typically 64 characters (got {len(api_key)})")
+                print(f"   âš ï¸  Warning: VirusTotal API keys are typically 64 characters (got {len(api_key)})")
                 if not prompt_yes_no("Continue with this key anyway", default=False):
                     continue
-            
+
             # Test API key if it's new or changed
             if api_key != existing_config.get("api_key"):
-                print("   🔄 Testing API key...")
+                print("   ðŸ”„ Testing API key...")
                 if validate_virustotal_api_key(api_key):
-                    print("   ✓ API key is valid")
+                    print("   âœ“ API key is valid")
                     config["api_key"] = api_key
                     break
                 else:
-                    print("   ❌ API key is invalid or expired")
+                    print("   âŒ API key is invalid or expired")
                     continue
             else:
                 config["api_key"] = api_key
-                print("   ✓ Using existing API key")
+                print("   âœ“ Using existing API key")
                 break
-        
+
         # Request interval
         while True:
             try:
@@ -811,126 +811,126 @@ def prompt_configuration() -> dict:
                     existing_config.get("request_interval", 20)
                 )
                 request_interval = int(interval_str)
-                
+
                 if request_interval < 1:
-                    print("   ❌ Request interval must be at least 1 second")
+                    print("   âŒ Request interval must be at least 1 second")
                     continue
-                
+
                 if request_interval < 15:
-                    print("   ⚠️  Warning: Intervals < 15 seconds may exceed free tier limits")
+                    print("   âš ï¸  Warning: Intervals < 15 seconds may exceed free tier limits")
                     if not prompt_yes_no("Continue with this interval", default=False):
                         continue
-                
+
                 config["request_interval"] = request_interval
-                print(f"   ✓ Request interval: {request_interval} seconds\n")
+                print(f"   âœ“ Request interval: {request_interval} seconds\n")
                 break
-                
+
             except ValueError:
-                print("   ❌ Please enter a valid number")
+                print("   âŒ Please enter a valid number")
     else:
-        print("   ✓ Running in offline mode (local scanning only)\n")
+        print("   âœ“ Running in offline mode (local scanning only)\n")
         config["api_key"] = ""
         config["request_interval"] = 1  # Not used in offline mode
-    
-    # Local scanning configuration  
-    print("┌─ 🛡️  Local Security Scanning " + "─" * 44)
-    print("│ ClamAV provides local malware detection")
-    print("└" + "─" * 70)
-    
+
+    # Local scanning configuration
+    print("â”Œâ”€ ðŸ›¡ï¸  Local Security Scanning " + "â”€" * 44)
+    print("â”‚ ClamAV provides local malware detection")
+    print("â””" + "â”€" * 70)
+
     config["use_clamav"] = prompt_yes_no(
         "Enable local ClamAV scanning",
         existing_config.get("use_clamav", True)
     )
     config["clamav_cmd"] = existing_config.get("clamav_cmd", "clamdscan")
-    print(f"   ✓ ClamAV: {'Enabled' if config['use_clamav'] else 'Disabled'}\n")
+    print(f"   âœ“ ClamAV: {'Enabled' if config['use_clamav'] else 'Disabled'}\n")
 
     # File system configuration
-    print("┌─ 💾 File System Configuration " + "─" * 42)
-    print("│ Mount point and logging settings")
-    print("└" + "─" * 70)
-    
+    print("â”Œâ”€ ðŸ’¾ File System Configuration " + "â”€" * 42)
+    print("â”‚ Mount point and logging settings")
+    print("â””" + "â”€" * 70)
+
     while True:
         mount_base = prompt_with_default(
             "USB mount base directory",
             existing_config.get("mount_base", "/mnt/arguspi")
         )
-        
+
         if os.path.isabs(mount_base):
             config["mount_base"] = mount_base
             break
         else:
-            print("   ❌ Mount path must be absolute (start with /)")
-    
+            print("   âŒ Mount path must be absolute (start with /)")
+
     config["log_path"] = existing_config.get("log_path", "/var/log/arguspi.log")
-    print(f"   ✓ Mount base: {config['mount_base']}")
-    print(f"   ✓ Log file: {config['log_path']}\n")
+    print(f"   âœ“ Mount base: {config['mount_base']}")
+    print(f"   âœ“ Log file: {config['log_path']}\n")
 
     # GUI Configuration
-    print("┌─ 🖥️  User Interface " + "─" * 52)
-    print("│ Graphical user interface settings")  
-    print("└" + "─" * 70)
-    
+    print("â”Œâ”€ ðŸ–¥ï¸  User Interface " + "â”€" * 52)
+    print("â”‚ Graphical user interface settings")
+    print("â””" + "â”€" * 70)
+
     config["use_gui"] = prompt_yes_no(
         "Enable graphical user interface",
         existing_config.get("use_gui", True)
     )
-    
+
     if config["use_gui"]:
         config["gui_simple_mode"] = prompt_yes_no(
             "Use simplified GUI mode (recommended for end users)",
             existing_config.get("gui_simple_mode", False)
         )
-        
+
         # Display rotation
-        rotation_options = {0: "Normal (0°)", 1: "90° clockwise", 2: "180°", 3: "270° clockwise"}
+        rotation_options = {0: "Normal (0Â°)", 1: "90Â° clockwise", 2: "180Â°", 3: "270Â° clockwise"}
         current_rotation = existing_config.get("display_rotation", 0)
-        
+
         print(f"   Current display rotation: {rotation_options[current_rotation]}")
-        print("   Rotation options: 0=Normal, 1=90°, 2=180°, 3=270°")
-        
+        print("   Rotation options: 0=Normal, 1=90Â°, 2=180Â°, 3=270Â°")
+
         while True:
             try:
                 rotation_str = prompt_with_default("Display rotation", current_rotation)
                 rotation = int(rotation_str)
                 if rotation in rotation_options:
                     config["display_rotation"] = rotation
-                    
+
                     # Offer to test the rotation if not default
                     if rotation != 0:
                         test_rotation = prompt_yes_no(
-                            f"Test {rotation * 90}° rotation now (10 second preview)",
+                            f"Test {rotation * 90}Â° rotation now (10 second preview)",
                             False
                         )
                         if test_rotation:
                             test_display_rotation(rotation)
-                    
+
                     break
                 else:
-                    print("   ❌ Rotation must be 0, 1, 2, or 3")
+                    print("   âŒ Rotation must be 0, 1, 2, or 3")
             except ValueError:
-                print("   ❌ Please enter a valid number")
-        
-        print(f"   ✓ GUI: Enabled ({'Simple' if config['gui_simple_mode'] else 'Detailed'} mode)")
-        print(f"   ✓ Display: {rotation_options[config['display_rotation']]}\n")
+                print("   âŒ Please enter a valid number")
+
+        print(f"   âœ“ GUI: Enabled ({'Simple' if config['gui_simple_mode'] else 'Detailed'} mode)")
+        print(f"   âœ“ Display: {rotation_options[config['display_rotation']]}\n")
     else:
         config["gui_simple_mode"] = False
         config["display_rotation"] = 0
-        print("   ✓ GUI: Disabled (headless mode)\n")
+        print("   âœ“ GUI: Disabled (headless mode)\n")
 
     # Hardware Configuration
-    print("┌─ ⚡ Hardware Features " + "─" * 48)
-    print("│ LED indicators and other hardware")
-    print("└" + "─" * 70)
-    
+    print("â”Œâ”€ âš¡ Hardware Features " + "â”€" * 48)
+    print("â”‚ LED indicators and other hardware")
+    print("â””" + "â”€" * 70)
+
     config["use_led"] = prompt_yes_no(
         "Enable RGB LED status indicator",
         existing_config.get("use_led", False)
     )
-    
+
     if config["use_led"]:
         print("   GPIO pin configuration (BCM numbering):")
         led_pins = existing_config.get("led_pins", {"red": 17, "green": 27, "blue": 22})
-        
+
         for color in ["red", "green", "blue"]:
             while True:
                 try:
@@ -940,63 +940,63 @@ def prompt_configuration() -> dict:
                         led_pins[color] = pin
                         break
                     else:
-                        print("   ❌ GPIO pin must be between 0 and 40")
+                        print("   âŒ GPIO pin must be between 0 and 40")
                 except ValueError:
-                    print("   ❌ Please enter a valid pin number")
-        
+                    print("   âŒ Please enter a valid pin number")
+
         config["led_pins"] = led_pins
-        print(f"   ✓ LED: Enabled (R:{led_pins['red']}, G:{led_pins['green']}, B:{led_pins['blue']})\n")
+        print(f"   âœ“ LED: Enabled (R:{led_pins['red']}, G:{led_pins['green']}, B:{led_pins['blue']})\n")
     else:
         config["led_pins"] = existing_config.get("led_pins", {"red": 17, "green": 27, "blue": 22})
-        print("   ✓ LED: Disabled\n")
+        print("   âœ“ LED: Disabled\n")
 
-    # SIEM Integration  
-    print("┌─ 📊 SIEM Integration " + "─" * 50)
-    print("│ Security Information and Event Management")
-    print("└" + "─" * 70)
-    
+    # SIEM Integration
+    print("â”Œâ”€ ðŸ“Š SIEM Integration " + "â”€" * 50)
+    print("â”‚ Security Information and Event Management")
+    print("â””" + "â”€" * 70)
+
     config["siem_enabled"] = prompt_yes_no(
         "Enable SIEM webhook notifications",
         existing_config.get("siem_enabled", False)
     )
-    
+
     if config["siem_enabled"]:
         while True:
             webhook_url = prompt_with_default(
                 "SIEM webhook URL (HTTPS required)",
                 existing_config.get("siem_webhook_url", "")
             )
-            
+
             if not webhook_url:
-                print("   ❌ Webhook URL is required when SIEM is enabled")
+                print("   âŒ Webhook URL is required when SIEM is enabled")
                 continue
-                
+
             if validate_webhook_url(webhook_url):
                 config["siem_webhook_url"] = webhook_url
-                print("   ✓ SIEM webhook URL validated")
+                print("   âœ“ SIEM webhook URL validated")
                 break
             else:
-                print("   ❌ Invalid webhook URL")
-        print(f"   ✓ SIEM: Enabled\n")
+                print("   âŒ Invalid webhook URL")
+        print(f"   âœ“ SIEM: Enabled\n")
     else:
         config["siem_webhook_url"] = existing_config.get("siem_webhook_url", "")
-        print("   ✓ SIEM: Disabled\n")
+        print("   âœ“ SIEM: Disabled\n")
 
     # Configuration summary
-    print("┌─ 📋 Configuration Summary " + "─" * 45)
-    print(f"│ Station: {config['station_name']}")
-    print(f"│ VirusTotal: {'Enabled' if config['api_key'] else 'Disabled (offline mode)'}")
-    print(f"│ ClamAV: {'Enabled' if config['use_clamav'] else 'Disabled'}")
-    print(f"│ GUI: {'Enabled' if config['use_gui'] else 'Disabled'}")
-    print(f"│ LED: {'Enabled' if config['use_led'] else 'Disabled'}")
-    print(f"│ SIEM: {'Enabled' if config['siem_enabled'] else 'Disabled'}")
-    print("└" + "─" * 70)
-    
+    print("â”Œâ”€ ðŸ“‹ Configuration Summary " + "â”€" * 45)
+    print(f"â”‚ Station: {config['station_name']}")
+    print(f"â”‚ VirusTotal: {'Enabled' if config['api_key'] else 'Disabled (offline mode)'}")
+    print(f"â”‚ ClamAV: {'Enabled' if config['use_clamav'] else 'Disabled'}")
+    print(f"â”‚ GUI: {'Enabled' if config['use_gui'] else 'Disabled'}")
+    print(f"â”‚ LED: {'Enabled' if config['use_led'] else 'Disabled'}")
+    print(f"â”‚ SIEM: {'Enabled' if config['siem_enabled'] else 'Disabled'}")
+    print("â””" + "â”€" * 70)
+
     if not prompt_yes_no("\nSave this configuration and continue with setup", default=True):
-        print("\n❌ Setup cancelled by user.")
+        print("\nâŒ Setup cancelled by user.")
         sys.exit(0)
-    
-    print("\n✅ Configuration saved! Proceeding with installation...\n")
+
+    print("\nâœ… Configuration saved! Proceeding with installation...\n")
     return config
 
 
@@ -1007,7 +1007,7 @@ def write_config(config: dict) -> None:
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
     os.chmod(config_path, 0o600)
-    print(f"✓ ArgusPi configuration written to {config_path}")
+    print(f"âœ“ ArgusPi configuration written to {config_path}")
 
 
 def install_packages(config: dict) -> None:
@@ -1024,30 +1024,30 @@ def install_packages(config: dict) -> None:
         print("Updating system packages...")
         subprocess.run(["apt-get", "update"], check=True)
         subprocess.run(["apt-get", "upgrade", "-y"], check=True)
-        print("✓ System packages updated")
+        print("âœ“ System packages updated")
     except subprocess.CalledProcessError as e:
-        print(f"⚠ Warning: Failed to update system packages: {e}")
+        print(f"âš  Warning: Failed to update system packages: {e}")
 
     # Install core system packages
     try:
         core_packages = [
-            "hdparm", "python3-pip", "wireless-tools", 
+            "hdparm", "python3-pip", "wireless-tools",
             "python3-tk", "python3-dev", "python3-setuptools",
             "usbutils", "lsof", "systemd", "git"
         ]
         subprocess.run(["apt-get", "install", "-y"] + core_packages, check=True)
-        print("✓ Installed core system packages")
+        print("âœ“ Installed core system packages")
     except subprocess.CalledProcessError as e:
-        print(f"✗ Error: Failed to install basic packages: {e}")
+        print(f"âœ— Error: Failed to install basic packages: {e}")
         sys.exit(1)
 
     # Install Python packages
     try:
         python_packages = ["psutil", "requests"]
         subprocess.run(["pip3", "install", "--user"] + python_packages, check=True)
-        print("✓ Installed Python dependencies")
+        print("âœ“ Installed Python dependencies")
     except subprocess.CalledProcessError as e:
-        print(f"⚠ Warning: Failed to install Python packages: {e}")
+        print(f"âš  Warning: Failed to install Python packages: {e}")
 
     # Check if GUI is enabled and desktop environment is needed
     if config.get("use_gui"):
@@ -1055,117 +1055,117 @@ def install_packages(config: dict) -> None:
         try:
             x11_packages = ["x11-xserver-utils", "xauth"]
             subprocess.run(["apt-get", "install", "-y"] + x11_packages, check=True)
-            print("✓ Installed X11 utilities for GUI support")
+            print("âœ“ Installed X11 utilities for GUI support")
         except subprocess.CalledProcessError as e:
-            print(f"⚠ Warning: Failed to install X11 utilities: {e}")
+            print(f"âš  Warning: Failed to install X11 utilities: {e}")
 
         # Check if desktop environment is already installed
         try:
             result = subprocess.run(["dpkg", "-l", "raspberrypi-ui-mods"], capture_output=True, text=True)
             if result.returncode != 0:
-                print("⚠ Desktop environment not found. Installing for GUI support...")
+                print("âš  Desktop environment not found. Installing for GUI support...")
                 try:
                     subprocess.run(["apt-get", "install", "-y", "raspberrypi-ui-mods", "lxde-core", "lightdm", "x11-xserver-utils"], check=True)
-                    print("✓ Installed desktop environment (raspberrypi-ui-mods, lxde-core, lightdm)")
-                    
+                    print("âœ“ Installed desktop environment (raspberrypi-ui-mods, lxde-core, lightdm)")
+
                     # Enable graphical boot target
                     subprocess.run(["systemctl", "set-default", "graphical.target"], check=True)
                     subprocess.run(["systemctl", "enable", "lightdm"], check=True)
-                    print("✓ Configured system for graphical boot")
-                    
+                    print("âœ“ Configured system for graphical boot")
+
                 except subprocess.CalledProcessError as e:
-                    print(f"⚠ Warning: Failed to install desktop environment: {e}")
+                    print(f"âš  Warning: Failed to install desktop environment: {e}")
                     print("  GUI will not work properly. Consider using Raspberry Pi OS Desktop image.")
             else:
-                print("✓ Desktop environment already installed")
+                print("âœ“ Desktop environment already installed")
         except subprocess.CalledProcessError:
-            print("⚠ Warning: Could not check desktop environment status")
+            print("âš  Warning: Could not check desktop environment status")
 
     # Optionally install ClamAV with daemon for performance
     if config.get("use_clamav"):
         try:
             # Install complete ClamAV package including daemon for optimal performance
             subprocess.run(["apt-get", "install", "-y", "clamav", "clamav-daemon", "clamav-freshclam"], check=True)
-            print("✓ Installed ClamAV with daemon (clamav, clamav-daemon, clamav-freshclam)")
-            
+            print("âœ“ Installed ClamAV with daemon (clamav, clamav-daemon, clamav-freshclam)")
+
             # Update ClamAV virus database
             print("Updating ClamAV virus database...")
             try:
                 subprocess.run(["systemctl", "stop", "clamav-freshclam"], check=True)
                 subprocess.run(["freshclam"], check=True)
                 subprocess.run(["systemctl", "start", "clamav-freshclam"], check=True)
-                print("✓ ClamAV virus database updated")
+                print("âœ“ ClamAV virus database updated")
             except subprocess.CalledProcessError as e:
-                print(f"⚠ Warning: Could not update ClamAV database: {e}")
-            
+                print(f"âš  Warning: Could not update ClamAV database: {e}")
+
             # Start and enable ClamAV services
             try:
                 subprocess.run(["systemctl", "enable", "clamav-daemon"], check=True)
                 subprocess.run(["systemctl", "enable", "clamav-freshclam"], check=True)
-                print("✓ Enabled ClamAV services for automatic startup")
-                
+                print("âœ“ Enabled ClamAV services for automatic startup")
+
                 # Start freshclam service to update virus database
                 subprocess.run(["systemctl", "start", "clamav-freshclam"], check=True)
-                print("✓ Started ClamAV database update service")
-                
+                print("âœ“ Started ClamAV database update service")
+
                 # Note: clamav-daemon will start automatically after freshclam updates database
                 print("  Note: ClamAV daemon will start automatically after virus database update")
-                
+
             except subprocess.CalledProcessError as e:
-                print(f"⚠ Warning: Failed to configure ClamAV services: {e}")
+                print(f"âš  Warning: Failed to configure ClamAV services: {e}")
                 print("  ClamAV is installed but may need manual service configuration")
-                
+
         except subprocess.CalledProcessError as e:
-            print(f"⚠ Warning: Failed to install ClamAV: {e}")
+            print(f"âš  Warning: Failed to install ClamAV: {e}")
             print("  ClamAV scanning will be disabled - scanning will be much slower!")
 
     # Optionally install gpiozero for LED control
     if config.get("use_led"):
         try:
             subprocess.run(["apt-get", "install", "-y", "python3-gpiozero"], check=True)
-            print("✓ Installed python3-gpiozero for LED control")
+            print("âœ“ Installed python3-gpiozero for LED control")
         except subprocess.CalledProcessError as e:
-            print(f"⚠ Warning: Failed to install gpiozero: {e}")
+            print(f"âš  Warning: Failed to install gpiozero: {e}")
             print("  LED indicator will be disabled.")
 
     # Install Tkinter for GUI if not already present
     if config.get("use_gui"):
         try:
             subprocess.run(["apt-get", "install", "-y", "python3-tk"], check=True)
-            print("✓ Installed python3-tk for ArgusPi GUI")
+            print("âœ“ Installed python3-tk for ArgusPi GUI")
         except subprocess.CalledProcessError as e:
-            print(f"⚠ Warning: Failed to install Tkinter: {e}")
+            print(f"âš  Warning: Failed to install Tkinter: {e}")
             print("  ArgusPi GUI will be disabled.")
 
     # Install Python dependencies - handle externally-managed-environment
     python_packages = ["pyudev", "requests"]
-    
+
     # Try apt packages first (preferred on modern systems)
     try:
         apt_packages = ["python3-pyudev", "python3-requests"]
         subprocess.run(["apt-get", "install", "-y"] + apt_packages, check=True)
-        print("✓ Installed Python dependencies via apt (python3-pyudev, python3-requests)")
+        print("âœ“ Installed Python dependencies via apt (python3-pyudev, python3-requests)")
     except subprocess.CalledProcessError:
-        print("⚠ Warning: Could not install via apt, trying pip...")
-        
+        print("âš  Warning: Could not install via apt, trying pip...")
+
         # Fall back to pip with --break-system-packages for externally-managed environments
         try:
             subprocess.run(["pip3", "install", "--break-system-packages", "--upgrade"] + python_packages, check=True)
-            print("✓ Installed Python dependencies via pip with --break-system-packages (pyudev, requests)")
+            print("âœ“ Installed Python dependencies via pip with --break-system-packages (pyudev, requests)")
         except subprocess.CalledProcessError as e:
             # Final fallback: try regular pip (for older systems)
             try:
                 subprocess.run(["pip3", "install", "--upgrade"] + python_packages, check=True)
-                print("✓ Installed Python dependencies via pip (pyudev, requests)")
+                print("âœ“ Installed Python dependencies via pip (pyudev, requests)")
             except subprocess.CalledProcessError as final_e:
-                print(f"✗ Error: Failed to install Python dependencies via all methods:")
+                print(f"âœ— Error: Failed to install Python dependencies via all methods:")
                 print(f"  - apt failed: {e}")
                 print(f"  - pip failed: {final_e}")
                 print("  Please install python3-pyudev and python3-requests manually:")
                 print("  sudo apt install python3-pyudev python3-requests")
                 sys.exit(1)
 
-    print("✓ ArgusPi package installation complete.")
+    print("âœ“ ArgusPi package installation complete.")
 
 
 def deploy_scanning_script(config: dict) -> None:
@@ -1175,12 +1175,12 @@ def deploy_scanning_script(config: dict) -> None:
     dest_script = "/usr/local/bin/arguspi_scan_station.py"
 
     if not os.path.exists(src_script):
-        print(f"✗ Error: ArgusPi scanning script not found at {src_script}")
+        print(f"âœ— Error: ArgusPi scanning script not found at {src_script}")
         sys.exit(1)
 
     shutil.copy2(src_script, dest_script)
     os.chmod(dest_script, os.stat(dest_script).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    print(f"✓ ArgusPi scanning script deployed to {dest_script}")
+    print(f"âœ“ ArgusPi scanning script deployed to {dest_script}")
 
     # Deploy diagnostic tool if available
     src_diagnostic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui_diagnostic.py")
@@ -1188,9 +1188,9 @@ def deploy_scanning_script(config: dict) -> None:
         dest_diagnostic = "/usr/local/bin/gui_diagnostic.py"
         shutil.copy2(src_diagnostic, dest_diagnostic)
         os.chmod(dest_diagnostic, os.stat(dest_diagnostic).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        print(f"✓ GUI diagnostic tool deployed to {dest_diagnostic}")
+        print(f"âœ“ GUI diagnostic tool deployed to {dest_diagnostic}")
     else:
-        print("⚠ GUI diagnostic tool not found - skipping deployment")
+        print("âš  GUI diagnostic tool not found - skipping deployment")
 
 
 def create_udev_rule() -> None:
@@ -1203,7 +1203,7 @@ ACTION=="remove", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partiti
 """
     with open(rules_path, "w") as f:
         f.write(rule_content.strip() + "\n")
-    print(f"✓ ArgusPi udev rule written to {rules_path}")
+    print(f"âœ“ ArgusPi udev rule written to {rules_path}")
     # Reload udev rules
     subprocess.run(["udevadm", "control", "--reload"])
 
@@ -1211,11 +1211,11 @@ ACTION=="remove", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{DEVTYPE}=="partiti
 def create_systemd_service(config: dict) -> None:
     """Create ArgusPi systemd service with GUI support when enabled."""
     service_path = "/etc/systemd/system/arguspi.service"
-    
+
     # Get user info for GUI environment if GUI is enabled
     if config.get("use_gui", True):
         username, uid, gid, homedir = get_desktop_user()
-        
+
         # Create a robust service that works with both old (Xorg) and new (Wayland/labwc) systems
         service_content = f"""[Unit]
 Description=ArgusPi USB Security Scanner with GUI
@@ -1265,18 +1265,18 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 """
-    
+
     with open(service_path, "w") as f:
         f.write(service_content.strip() + "\n")
-    
-    print(f"✓ ArgusPi systemd service file created at {service_path}")
+
+    print(f"âœ“ ArgusPi systemd service file created at {service_path}")
     subprocess.run(["systemctl", "daemon-reload"], check=False)
-    
+
     if config.get("use_gui", True):
-        print("✓ SystemD service configured for GUI mode")
+        print("âœ“ SystemD service configured for GUI mode")
         print("  Service will be enabled during GUI configuration")
     else:
-        print("✓ SystemD service configured for background mode")
+        print("âœ“ SystemD service configured for background mode")
         print("  Enable with: sudo systemctl enable arguspi")
 
 
@@ -1288,34 +1288,34 @@ def get_desktop_user() -> tuple:
         if real_user and real_user != 'root':
             import pwd
             user_info = pwd.getpwnam(real_user)
-            print(f"✓ Detected desktop user: {real_user} (UID: {user_info.pw_uid})")
+            print(f"âœ“ Detected desktop user: {real_user} (UID: {user_info.pw_uid})")
             return real_user, user_info.pw_uid, user_info.pw_gid, user_info.pw_dir
     except Exception:
         pass
-    
+
     # Fallback 1: Try the traditional 'pi' user
     try:
         import pwd
         pi_user = pwd.getpwnam("pi")
-        print("✓ Using traditional 'pi' user account")
+        print("âœ“ Using traditional 'pi' user account")
         return "pi", pi_user.pw_uid, pi_user.pw_gid, pi_user.pw_dir
     except KeyError:
         pass
-    
+
     # Fallback 2: Look for first non-system user (UID >= 1000)
     try:
         import pwd
         for user in pwd.getpwall():
             if user.pw_uid >= 1000 and user.pw_uid < 65534:  # Regular user range
                 if user.pw_dir.startswith('/home/'):
-                    print(f"✓ Found desktop user: {user.pw_name} (UID: {user.pw_uid})")
+                    print(f"âœ“ Found desktop user: {user.pw_name} (UID: {user.pw_uid})")
                     return user.pw_name, user.pw_uid, user.pw_gid, user.pw_dir
     except Exception:
         pass
-    
+
     # Final fallback: Use environment or defaults
     current_user = os.environ.get('USER', 'pi')
-    print(f"⚠ Warning: Using fallback user: {current_user}")
+    print(f"âš  Warning: Using fallback user: {current_user}")
     return current_user, 1000, 1000, f"/home/{current_user}"
 
 
@@ -1324,32 +1324,32 @@ def create_desktop_autostart(config: dict) -> bool:
     if not config.get("use_gui", True):
         print("GUI disabled - skipping GUI startup configuration")
         return True
-        
+
     try:
         print("Setting up GUI startup using systemd service...")
-        
+
         # Skip desktop autostart (doesn't work with sudo) and ensure systemd service handles GUI
         print("  Desktop autostart with sudo doesn't work reliably during boot")
         print("  Using systemd service instead for reliable GUI startup")
-        
+
         # Get the actual desktop user for environment variables
         username, uid, gid, homedir = get_desktop_user()
-        
+
         # The systemd service should already be created, just enable it for GUI startup
         try:
             subprocess.run(["systemctl", "enable", "arguspi"], check=True)
-            print("✓ SystemD service enabled for automatic GUI startup")
+            print("âœ“ SystemD service enabled for automatic GUI startup")
             print(f"  GUI will start automatically on boot for user environment")
             print(f"  Service runs with proper permissions and GUI access")
-            
+
             return True
-            
+
         except subprocess.CalledProcessError as e:
-            print(f"⚠ Warning: Could not enable systemd service: {e}")
+            print(f"âš  Warning: Could not enable systemd service: {e}")
             return False
-        
+
     except Exception as e:
-        print(f"⚠ Warning: Could not configure GUI startup: {e}")
+        print(f"âš  Warning: Could not configure GUI startup: {e}")
         print("Manual configuration required:")
         print("  After reboot, start GUI manually with: python3 /usr/local/bin/arguspi_scan_station.py")
         print("  Or enable systemd service with: sudo systemctl enable arguspi && sudo systemctl start arguspi")
@@ -1361,54 +1361,54 @@ def verify_clamav_installation() -> None:
     try:
         # Check ClamAV version
         result = subprocess.run(["clamscan", "--version"], capture_output=True, text=True, check=True)
-        print(f"✓ ClamAV command-line scanner: {result.stdout.strip()}")
-        
+        print(f"âœ“ ClamAV command-line scanner: {result.stdout.strip()}")
+
         # Check daemon status
-        daemon_result = subprocess.run(["systemctl", "is-active", "clamav-daemon"], 
+        daemon_result = subprocess.run(["systemctl", "is-active", "clamav-daemon"],
                                      capture_output=True, text=True)
         if daemon_result.returncode == 0:
-            print("✓ ClamAV daemon is running")
+            print("âœ“ ClamAV daemon is running")
         else:
-            print("⚠ ClamAV daemon not yet running (will start after database update)")
-            
+            print("âš  ClamAV daemon not yet running (will start after database update)")
+
         # Check freshclam status
-        freshclam_result = subprocess.run(["systemctl", "is-active", "clamav-freshclam"], 
+        freshclam_result = subprocess.run(["systemctl", "is-active", "clamav-freshclam"],
                                         capture_output=True, text=True)
         if freshclam_result.returncode == 0:
-            print("✓ ClamAV database update service is running")
+            print("âœ“ ClamAV database update service is running")
         else:
-            print("⚠ ClamAV database update service not running")
-            
+            print("âš  ClamAV database update service not running")
+
         # Check if database files exist
-        db_files = subprocess.run(["find", "/var/lib/clamav", "-name", "*.cvd", "-o", "-name", "*.cld"], 
+        db_files = subprocess.run(["find", "/var/lib/clamav", "-name", "*.cvd", "-o", "-name", "*.cld"],
                                 capture_output=True, text=True)
         if db_files.stdout.strip():
-            print("✓ ClamAV virus database files found")
-            print("  📈 Performance: With ClamAV daemon, scanning ~10 minutes for 1000 files")
+            print("âœ“ ClamAV virus database files found")
+            print("  ðŸ“ˆ Performance: With ClamAV daemon, scanning ~10 minutes for 1000 files")
         else:
-            print("⚠ ClamAV virus database not yet downloaded")
+            print("âš  ClamAV virus database not yet downloaded")
             print("  Run 'sudo freshclam' after setup to download virus definitions")
-            
+
     except subprocess.CalledProcessError as e:
-        print(f"✗ ClamAV verification failed: {e}")
-        print("⚠ WARNING: Without ClamAV daemon, scanning will be extremely slow!")
-        print("  📉 Performance: Without ClamAV, ~5.5 hours for 1000 files")
-        print("  💡 Recommendation: Run the troubleshooting steps in TROUBLESHOOTING.md")
+        print(f"âœ— ClamAV verification failed: {e}")
+        print("âš  WARNING: Without ClamAV daemon, scanning will be extremely slow!")
+        print("  ðŸ“‰ Performance: Without ClamAV, ~5.5 hours for 1000 files")
+        print("  ðŸ’¡ Recommendation: Run the troubleshooting steps in TROUBLESHOOTING.md")
 
 
 def configure_cmdline_rotation(rotation: int) -> bool:
     """
     Configure display rotation in /boot/firmware/cmdline.txt using video parameter.
-    
+
     Args:
-        rotation: Display rotation (0=0°, 1=90°, 2=180°, 3=270°)
-    
+        rotation: Display rotation (0=0Â°, 1=90Â°, 2=180Â°, 3=270Â°)
+
     Returns:
         bool: True if successful, False otherwise
     """
     if rotation == 0:
         return True  # No rotation needed
-        
+
     # Try modern Pi OS location first
     cmdline_path = "/boot/firmware/cmdline.txt"
     if not os.path.exists(cmdline_path):
@@ -1416,105 +1416,105 @@ def configure_cmdline_rotation(rotation: int) -> bool:
         cmdline_path = "/boot/cmdline.txt"
         if not os.path.exists(cmdline_path):
             return False
-    
+
     try:
         # Read current cmdline.txt
         with open(cmdline_path, 'r') as f:
             cmdline = f.read().strip()
-        
+
         # Remove any existing rotation parameters
         words = cmdline.split()
         words = [word for word in words if not word.startswith('video=DSI-1:') and not word.startswith('display_rotate=')]
-        
+
         # Add new rotation parameter
         rotation_degrees = rotation * 90
         video_param = f"video=DSI-1:720x1280@60,rotate={rotation_degrees}"
         words.append(video_param)
-        
+
         # Write back to cmdline.txt
         new_cmdline = " ".join(words)
         with open(cmdline_path, 'w') as f:
             f.write(new_cmdline + "\n")
-            
+
         return True
-        
+
     except Exception as e:
-        print(f"⚠ Failed to configure cmdline rotation: {e}")
+        print(f"âš  Failed to configure cmdline rotation: {e}")
         return False
 
 
 def test_display_rotation(rotation: int) -> None:
     """Test display rotation with immediate feedback."""
-    print(f"\n🔄 Testing display rotation: {rotation * 90}°")
-    
+    print(f"\nðŸ”„ Testing display rotation: {rotation * 90}Â°")
+
     try:
         import subprocess
         import time
-        
+
         # Try wlr-randr first (modern Wayland)
         result = subprocess.run(["which", "wlr-randr"], capture_output=True, text=True, timeout=3)
         if result.returncode == 0:
-            print("✓ Found wlr-randr (Wayland)")
-            
+            print("âœ“ Found wlr-randr (Wayland)")
+
             # Get outputs and try rotation
             result = subprocess.run(["wlr-randr"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
-                outputs = [line.split()[0] for line in result.stdout.strip().split('\n') 
+                outputs = [line.split()[0] for line in result.stdout.strip().split('\n')
                           if line and not line.startswith(' ')]
-                
+
                 for output in outputs[:1]:  # Try first output
                     if output:
                         cmd = ["wlr-randr", "--output", output, "--transform", str(rotation * 90)]
                         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-                        
+
                         if result.returncode == 0:
-                            print(f"✓ Applied test rotation to {output}")
-                            print("  ⏱  Rotation will revert in 10 seconds...")
+                            print(f"âœ“ Applied test rotation to {output}")
+                            print("  â±  Rotation will revert in 10 seconds...")
                             time.sleep(10)
-                            
+
                             # Revert to normal
                             cmd = ["wlr-randr", "--output", output, "--transform", "normal"]
                             subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-                            print("✓ Reverted to normal orientation")
+                            print("âœ“ Reverted to normal orientation")
                             return
-        
+
         # Try xrandr (X11)
         result = subprocess.run(["which", "xrandr"], capture_output=True, text=True, timeout=3)
         if result.returncode == 0:
-            print("✓ Found xrandr (X11)")
-            
+            print("âœ“ Found xrandr (X11)")
+
             rotations = {0: "normal", 1: "left", 2: "inverted", 3: "right"}
             xrandr_rot = rotations[rotation]
-            
+
             for output in ["DSI-1", "HDMI-1", "HDMI-A-1"]:
                 cmd = ["xrandr", "--output", output, "--rotate", xrandr_rot]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-                
+
                 if result.returncode == 0:
-                    print(f"✓ Applied test rotation to {output}")
-                    print("  ⏱  Rotation will revert in 10 seconds...")
+                    print(f"âœ“ Applied test rotation to {output}")
+                    print("  â±  Rotation will revert in 10 seconds...")
                     time.sleep(10)
-                    
+
                     # Revert to normal
                     cmd = ["xrandr", "--output", output, "--rotate", "normal"]
                     subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-                    print("✓ Reverted to normal orientation")
+                    print("âœ“ Reverted to normal orientation")
                     return
-        
-        print("⚠ No rotation tools available for testing")
+
+        print("âš  No rotation tools available for testing")
         print("  Configuration will be saved but requires reboot to take effect")
-        
+
     except Exception as e:
-        print(f"⚠ Rotation test failed: {e}")
+        print(f"âš  Rotation test failed: {e}")
 
 
 def configure_display_rotation(rotation: int) -> bool:
     """
     Configure display rotation in /boot/firmware/config.txt (modern Pi OS) or /boot/config.txt (legacy).
-    
+
     Args:
-        rotation: Display rotation (0=0°, 1=90°, 2=180°, 3=270°)
-    
+        rotation: Display rotation (0=0Â°, 1=90Â°, 2=180Â°, 3=270Â°)
+
     Returns:
         bool: True if successful, False otherwise
     """
@@ -1524,41 +1524,41 @@ def configure_display_rotation(rotation: int) -> bool:
         # Fallback to legacy location for older Pi OS versions
         config_path = "/boot/config.txt"
         if not os.path.exists(config_path):
-            print(f"⚠ Could not find config.txt at /boot/firmware/config.txt or /boot/config.txt")
+            print(f"âš  Could not find config.txt at /boot/firmware/config.txt or /boot/config.txt")
             return False
             return False
-    
+
     try:
         # Read current config.txt
         with open(config_path, 'r') as f:
             lines = f.readlines()
-        
+
         # Remove any existing display_rotate lines
         lines = [line for line in lines if not line.strip().startswith('display_rotate=')]
-        
+
         # Add new display_rotate setting if not default
         if rotation != 0:
             lines.append(f"display_rotate={rotation}\n")
-        
+
         # Write back to config.txt
         with open(config_path, 'w') as f:
             f.writelines(lines)
-        
-        rotation_names = {0: "Normal (0°)", 1: "90° clockwise", 2: "180°", 3: "270° clockwise"}
-        print(f"✓ Display rotation set to: {rotation_names.get(rotation, f'{rotation}°')}")
+
+        rotation_names = {0: "Normal (0Â°)", 1: "90Â° clockwise", 2: "180Â°", 3: "270Â° clockwise"}
+        print(f"âœ“ Display rotation set to: {rotation_names.get(rotation, f'{rotation}Â°')}")
         print(f"  Configuration updated in: {config_path}")
-        
+
         if rotation != 0:
-            print("  📱 Changes will take effect after reboot")
-        
+            print("  ðŸ“± Changes will take effect after reboot")
+
         return True
-        
+
     except PermissionError:
-        print(f"✗ Permission denied accessing {config_path}")
+        print(f"âœ— Permission denied accessing {config_path}")
         print("  This script must be run with sudo to modify boot configuration")
         return False
     except Exception as e:
-        print(f"✗ Failed to configure display rotation: {e}")
+        print(f"âœ— Failed to configure display rotation: {e}")
         return False
 
 
@@ -1568,7 +1568,7 @@ def main() -> None:
     print("    ArgusPi USB Security Scanner Setup")
     print("=" * 50)
     require_root()
-    
+
     # Detect and display user information for GUI setup
     print("\n--- User Account Detection ---")
     try:
@@ -1579,7 +1579,7 @@ def main() -> None:
     except Exception as e:
         print(f"Warning: Could not detect user account: {e}")
     print()
-    
+
     config = prompt_configuration()
     write_config(config)
 
@@ -1587,71 +1587,71 @@ def main() -> None:
     if config.get("siem_enabled"):
         print("Testing SIEM integration...")
         if test_siem_integration(config):
-            print("✓ SIEM integration test successful")
+            print("âœ“ SIEM integration test successful")
         else:
-            print("✗ SIEM integration test failed - check configuration")
+            print("âœ— SIEM integration test failed - check configuration")
             retry = input("Continue with setup anyway (Y/n)? ").strip().lower()
             if retry == "n" or retry == "no":
                 print("Setup cancelled. Please check SIEM configuration and try again.")
                 sys.exit(1)
 
     install_packages(config)
-    
+
     # Verify ClamAV installation if enabled
     if config.get("use_clamav"):
         print("\n--- Verifying ClamAV Installation ---")
         verify_clamav_installation()
-    
+
     deploy_scanning_script(config)
     create_udev_rule()
     create_systemd_service(config)
-    
+
     # Configure GUI autostart (if GUI is enabled)
     if config.get("use_gui", True):
         print("\n--- GUI Configuration ---")
         autostart_success = create_desktop_autostart(config)
-        
+
         if autostart_success:
-            print("✓ GUI startup configured successfully")
+            print("âœ“ GUI startup configured successfully")
             print("  ArgusPi will start automatically after reboot via systemd service")
         else:
-            print("⚠ GUI configuration failed")
+            print("âš  GUI configuration failed")
             print("  See troubleshooting output above for manual steps")
-            
+
         # Configure display rotation
         print("\n--- Display Configuration ---")
         display_rotation = config.get("display_rotation", 0)
         if display_rotation != 0:
-            print(f"Configuring {display_rotation * 90}° rotation...")
-            
+            print(f"Configuring {display_rotation * 90}Â° rotation...")
+
             # Try multiple configuration methods
             config_success = configure_display_rotation(display_rotation)
             cmdline_success = configure_cmdline_rotation(display_rotation)
-            
+
             if config_success or cmdline_success:
-                print("✓ Display rotation configured")
-                print("📋 Configured methods:")
+                print("âœ“ Display rotation configured")
+                print("ðŸ“‹ Configured methods:")
                 if config_success:
-                    print("  • config.txt rotation setting")
+                    print("  â€¢ config.txt rotation setting")
                 if cmdline_success:
-                    print("  • cmdline.txt boot parameter")
-                print("🔄 Reboot required for rotation to take effect")
+                    print("  â€¢ cmdline.txt boot parameter")
+                print("ðŸ”„ Reboot required for rotation to take effect")
             else:
-                print("⚠ Automatic rotation configuration failed")
-                print("📖 Manual configuration required:")
+                print("âš  Automatic rotation configuration failed")
+                print("ðŸ“– Manual configuration required:")
                 print(f"  Add to /boot/firmware/cmdline.txt: video=DSI-1:720x1280@60,rotate={display_rotation * 90}")
                 print(f"  Or add to /boot/firmware/config.txt: display_rotate={display_rotation}")
         else:
-            print("✓ Display rotation: Normal (0°)")
+            print("âœ“ Display rotation: Normal (0Â°)")
     else:
         # For non-GUI mode
-        print("✓ GUI disabled - running in headless mode")
-    
+        print("âœ“ GUI disabled - running in headless mode")
+
     print("\n--- Final Steps ---")
-    
+
     # Create mount base directory
     os.makedirs(config["mount_base"], exist_ok=True)
-    
+
     # Run GUI diagnostics if GUI is enabled and diagnostic tool was deployed
     if config.get("use_gui", True):
         diagnostic_path = "/usr/local/bin/gui_diagnostic.py"
@@ -1660,34 +1660,34 @@ def main() -> None:
             try:
                 subprocess.run(["python3", diagnostic_path], check=True)
             except subprocess.CalledProcessError:
-                print("⚠ GUI diagnostic tool encountered issues - check output above")
-    
+                print("âš  GUI diagnostic tool encountered issues - check output above")
+
     print()
     print("=" * 50)
-    print("✓ ArgusPi USB scan station setup complete!")
+    print("âœ“ ArgusPi USB scan station setup complete!")
     print()
     print("Your Raspberry Pi is now configured as an ArgusPi")
     print("USB security scanning station.")
-    
+
     if config.get("use_gui", True):
         print()
-        print("📺 GUI Configuration:")
+        print("ðŸ“º GUI Configuration:")
         print("  - GUI autostart has been configured")
         print("  - IMPORTANT: You must manually enable desktop autologin")
-        print("  - Run: sudo raspi-config → System Options → Boot / Auto Login → Desktop Autologin")
+        print("  - Run: sudo raspi-config â†’ System Options â†’ Boot / Auto Login â†’ Desktop Autologin")
         print("  - Then reboot: sudo reboot")
         print()
-        print("🔧 If GUI doesn't start after reboot:")
+        print("ðŸ”§ If GUI doesn't start after reboot:")
         print("  1. Run diagnostics: python3 /usr/local/bin/gui_diagnostic.py")
         print("  2. Check service logs: sudo journalctl -u arguspi.service -f")
         print("  3. Apply fix if needed: bash fix_gui_service.sh")
-    
+
     print()
-    print("🔌 Testing: Insert a USB device to test scanning")
+    print("ðŸ”Œ Testing: Insert a USB device to test scanning")
     print()
-    print(f"📊 Monitor with GUI or logs: /var/log/arguspi.log")
-    print(f"⚙️  Configuration: /etc/arguspi/config.json")
-    print(f"� Systemd service (if needed): sudo systemctl enable arguspi")
+    print(f"ðŸ“Š Monitor with GUI or logs: /var/log/arguspi.log")
+    print(f"âš™ï¸  Configuration: /etc/arguspi/config.json")
+    print(f"ï¿½ Systemd service (if needed): sudo systemctl enable arguspi")
     print("=" * 50)
 
 
